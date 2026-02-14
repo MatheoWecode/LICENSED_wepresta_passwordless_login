@@ -1,0 +1,70 @@
+{#
+ # =============================================================================
+ # WEDEV UI - Container Toast Notifications
+ # =============================================================================
+ # Utilisation: Inclure ce template une seule fois dans le layout principal,
+ # idéalement en fin de body.
+ #
+ # {% include '@WedevUI/admin/_partials/toasts.html.twig' %}
+ #
+ # Puis déclencher via JavaScript:
+ # window.dispatchEvent(new CustomEvent('wedev-toast', {
+ #     detail: { message: 'Item saved!', type: 'success' }
+ # }));
+ #
+ # Ou via les helpers JS:
+ # Wedev.notify.success('Item saved!');
+ # Wedev.notify.error('Something went wrong');
+ # Wedev.notify.warning('Please check your input');
+ # Wedev.notify.info('Processing...');
+ # =============================================================================
+ #}
+
+<div x-data="wedevToasts()"
+     @wedev-toast.window="add($event.detail)"
+     class="position-fixed"
+     style="top: 20px; right: 20px; z-index: 9999; max-width: 400px; pointer-events: none;">
+
+    <template x-for="toast in toasts" :key="toast.id">
+        <div class="alert alert-dismissible fade show mb-2 shadow-sm"
+             :class="'alert-' + toast.type"
+             role="alert"
+             style="pointer-events: auto;"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 transform translate-x-4"
+             x-transition:enter-end="opacity-100 transform translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 transform translate-x-0"
+             x-transition:leave-end="opacity-0 transform translate-x-4">
+
+            <div class="d-flex align-items-start">
+                {# Icon based on type #}
+                <i class="material-icons mr-2" style="font-size: 20px;"
+                   x-text="toast.type === 'success' ? 'check_circle' :
+                           toast.type === 'danger' ? 'error' :
+                           toast.type === 'warning' ? 'warning' : 'info'">
+                </i>
+
+                {# Message #}
+                <span x-text="toast.message" class="flex-grow-1"></span>
+            </div>
+
+            {# Close button #}
+            <button type="button"
+                    class="close"
+                    @click="remove(toast.id)"
+                    aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+    </template>
+</div>
+
+{# Style pour x-cloak (cacher avant initialisation Alpine) #}
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+
+
+
+

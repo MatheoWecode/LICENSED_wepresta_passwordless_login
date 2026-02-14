@@ -1,0 +1,614 @@
+---
+description: Contrôleurs admin Symfony et front-office legacy
+globs: ["src/Presentation/Controller/**/*.php", "controllers/**/*.php"]
+alwaysApply: false
+---
+
+# Contrôleurs PrestaShop
+
+## 🚀 Guide Rapide - Compatibilité PS8/PS9
+
+### Checklist nouvelle route/controller
+
+Pour que votre route/controller fonctionne immédiatement sur PS8 et PS9 après installation :
+
+1. ✅ **routes.yml** - Déclarer avec `_legacy_controller` et `_legacy_link`
+2. ✅ **Controller** - Injecter `TranslatorInterface` + `#[AdminSecurity]` avec `redirectRoute`
+3. ✅ **Tab** (optionnel) - Configurer dans `modulestarter.php::getTabsConfig()` avec `route_name`
+4. ✅ **IDs** - Toujours caster `(int)` les IDs de l'API PrestaShop
+5. ✅ **Traductions** - Utiliser `$this->translator->trans($id, [], $domain)` jamais `$this->trans()`
+
+### ⚠️ Ne PAS utiliser les routes Symfony dans getContent()
+
+```php
+// ❌ INCORRECT - Routes pas disponibles après install PS8
+public function getContent(): string
+{
+    $url = $this->getContainer()->get('router')->generate('modulestarter_dashboard');
+    Tools::redirectAdmin($url);
+}
+
+// ✅ CORRECT - Simple et fonctionne partout
+public function getContent(): string
+{
+    return $this->renderLegacyConfigurationForm();
+}
+```
+
+**Pourquoi ?** En PS8, les routes Symfony nécessitent la recompilation du cache. Le dashboard reste accessible via le menu admin (Tab installé).
+
+---
+
+## 📋 Template: Nouvelle Route/Controller
+
+### Exemple copier-coller pour ajouter une page admin
+
+**1. Déclarer la route dans `config/routes.yml` :**
+
+```yaml
+modulestarter_newpage:
+    path: /modulestarter/newpage
+    methods: [GET, POST]
+    defaults:
+        _controller: 'ModuleStarter\Presentation\Controller\Admin\NewPageController::index'
+        _legacy_controller: AdminModuleStarterNewPage
+        _legacy_link: AdminModuleStarterNewPage
+```
+
+**2. Créer le controller `src/Presentation/Controller/Admin/NewPageController.php` :**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Controller\Admin;
+
+use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
+use PrestaShopBundle\Security\Attribute\AdminSecurity;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\Translation\TranslatorInterface;
+
+class NewPageController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly TranslatorInterface $translator
+    ) {
+    }
+
+    #[AdminSecurity("is_granted('read', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+    public function index(): Response
+    {
+        return $this->render('@Modules/modulestarter/views/templates/admin/newpage.html.twig', [
+            'layoutTitle' => $this->translator->trans('New Page', [], 'Modules.Modulestarter.Admin'),
+            'help_link' => false,
+        ]);
+    }
+}
+```
+
+**3. (Optionnel) Ajouter un Tab dans `modulestarter.php::getTabsConfig()` :**
+
+Si vous voulez que la page apparaisse dans le menu admin :
+
+```php
+private function getTabsConfig(): array
+{
+    return [
+        // ... tabs existants ...
+        [
+            'class_name' => 'AdminModuleStarterNewPage',
+            'name' => 'New Page',
+            'parent_class_name' => 'AdminParentModulesSf',
+            'icon' => 'settings',
+            'visible' => true,
+            'route_name' => 'modulestarter_newpage',  // Lien auto en PS9
+        ],
+    ];
+}
+```
+
+**4. Créer le template `views/templates/admin/newpage.html.twig` :**
+
+```twig
+{% extends '@PrestaShop/Admin/layout.html.twig' %}
+
+{% block content %}
+<div class="container">
+    <h1>{{ 'New Page'|trans({}, 'Modules.Modulestarter.Admin') }}</h1>
+    <p>{{ 'Your content here'|trans({}, 'Modules.Modulestarter.Admin') }}</p>
+</div>
+{% endblock %}
+```
+
+---
+
+## 🔧 Contrôleurs Admin (Symfony - PS 8+)
+
+### Exemple: Controller avec formulaire
+
+```php
+<?php
+// src/Presentation/Controller/Admin/ConfigurationController.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Controller\Admin;
+
+use ModuleStarter\Application\Form\ConfigurationType;
+use ModuleStarter\Wedev\Core\Adapter\ConfigurationAdapter;
+use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
+use PrestaShopBundle\Security\Attribute\AdminSecurity;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\Translation\TranslatorInterface;
+
+class ConfigurationController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly ConfigurationAdapter $config,
+        private readonly TranslatorInterface $translator
+    ) {
+    }
+
+    #[AdminSecurity("is_granted('read', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+    public function configuration(Request $request): Response
+    {
+        $form = $this->createForm(ConfigurationType::class, [
+            'active' => $this->config->getBool('MODULESTARTER_ACTIVE'),
+            'title' => $this->config->get('MODULESTARTER_TITLE', ''),
+        ]);
+
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $data = $form->getData();
+            $this->config->set('MODULESTARTER_ACTIVE', $data['active']);
+            $this->config->set('MODULESTARTER_TITLE', $data['title']);
+
+            $this->addFlash('success', $this->translator->trans('Configuration saved.', [], 'Admin.Notifications.Success'));
+            return $this->redirectToRoute('modulestarter_configuration');
+        }
+
+        return $this->render('@Modules/modulestarter/views/templates/admin/configuration.html.twig', [
+            'configurationForm' => $form->createView(),
+            'layoutTitle' => $this->translator->trans('Configuration', [], 'Modules.Modulestarter.Admin'),
+        ]);
+    }
+}
+```
+
+### Exemple: Controller CRUD avec Grid
+
+```php
+<?php
+// src/Presentation/Controller/Admin/ItemController.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Controller\Admin;
+
+use ModuleStarter\Application\Service\ItemService;
+use ModuleStarter\Domain\ValueObject\ItemId;
+use ModuleStarter\Presentation\Grid\ItemGridDefinitionFactory;
+use PrestaShop\PrestaShop\Core\Grid\GridFactoryInterface;
+use PrestaShop\PrestaShop\Core\Grid\Search\SearchCriteria;
+use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
+use PrestaShopBundle\Security\Attribute\AdminSecurity;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\Translation\TranslatorInterface;
+
+class ItemController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly ItemService $service,
+        private readonly GridFactoryInterface $gridFactory,
+        private readonly TranslatorInterface $translator
+    ) {
+    }
+
+    /**
+     * Liste avec Grid.
+     * 
+     * ⚠️ buildSearchCriteriaFromRequest() n'existe PAS en PS9
+     *    → Construire SearchCriteria manuellement
+     */
+    #[AdminSecurity("is_granted('read', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+    public function index(Request $request): Response
+    {
+        $filters = $request->query->all(ItemGridDefinitionFactory::GRID_ID) ?: [];
+        $searchCriteria = new SearchCriteria(
+            $filters['filters'] ?? [],
+            $filters['orderBy'] ?? 'id_item',
+            $filters['sortOrder'] ?? 'desc',
+            (int) ($filters['offset'] ?? 0),
+            (int) ($filters['limit'] ?? 10)
+        );
+
+        $grid = $this->gridFactory->getGrid($searchCriteria);
+
+        return $this->render('@Modules/modulestarter/views/templates/admin/items/index.html.twig', [
+            'grid' => $this->presentGrid($grid),
+            'layoutTitle' => $this->translator->trans('Items', [], 'Modules.Modulestarter.Admin'),
+        ]);
+    }
+
+    #[AdminSecurity("is_granted('create', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+    public function create(Request $request): Response
+    {
+        $form = $this->createForm(ItemType::class);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $this->service->create($form->getData());
+            $this->addFlash('success', $this->translator->trans('Item created.', [], 'Modules.Modulestarter.Admin'));
+            return $this->redirectToRoute('modulestarter_items_index');
+        }
+
+        return $this->render('@Modules/modulestarter/views/templates/admin/items/form.html.twig', [
+            'form' => $form->createView(),
+            'layoutTitle' => $this->translator->trans('Create Item', [], 'Modules.Modulestarter.Admin'),
+        ]);
+    }
+
+    #[AdminSecurity("is_granted('delete', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+    public function delete(int $itemId, Request $request): Response
+    {
+        if (!$this->isCsrfTokenValid('delete-item-' . $itemId, $request->request->get('_token'))) {
+            $this->addFlash('error', $this->translator->trans('Invalid CSRF token.', [], 'Admin.Notifications.Error'));
+            return $this->redirectToRoute('modulestarter_items_index');
+        }
+
+            $this->service->delete(new ItemId($itemId));
+        $this->addFlash('success', $this->translator->trans('Item deleted.', [], 'Modules.Modulestarter.Admin'));
+        return $this->redirectToRoute('modulestarter_items_index');
+    }
+}
+```
+
+## 🌐 Contrôleurs Front-Office (Legacy)
+
+### Exemple: Controller Front-Office
+
+```php
+<?php
+// controllers/front/display.php
+
+declare(strict_types=1);
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
+/**
+ * Contrôleur front-office pour l'affichage principal.
+ *
+ * Naming: {ModuleName}{ControllerName}ModuleFrontController
+ * URL: /module/modulestarter/display
+ */
+class ModuleStarterDisplayModuleFrontController extends ModuleFrontController
+{
+    public $php_self = 'display';
+
+    public function init(): void
+    {
+        parent::init();
+
+        if (!Configuration::get('MODULESTARTER_ACTIVE')) {
+            Tools::redirect('index.php?controller=404');
+        }
+    }
+
+    public function setMedia(): void
+    {
+        parent::setMedia();
+
+        $this->registerStylesheet(
+            'modulestarter-front',
+            'modules/' . $this->module->name . '/views/dist/front.css',
+            ['media' => 'all', 'priority' => 150]
+        );
+
+        $this->registerJavascript(
+            'modulestarter-front',
+            'modules/' . $this->module->name . '/views/dist/front.js',
+            ['position' => 'bottom', 'priority' => 150]
+        );
+    }
+
+    public function initContent(): void
+    {
+        parent::initContent();
+
+        $service = $this->module->getService(ModuleStarterService::class);
+        $items = $service?->getActiveItems() ?? [];
+
+        $this->context->smarty->assign([
+                'items' => $items,
+                'title' => Configuration::get('MODULESTARTER_TITLE'),
+        ]);
+
+        $this->setTemplate('module:modulestarter/views/templates/front/display.tpl');
+    }
+}
+```
+
+### Exemple: Controller AJAX Front-Office
+
+```php
+<?php
+// controllers/front/ajax.php
+
+declare(strict_types=1);
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
+class ModuleStarterAjaxModuleFrontController extends ModuleFrontController
+{
+    public $ajax = true;
+
+    public function postProcess(): void
+    {
+        $action = Tools::getValue('action');
+
+        switch ($action) {
+            case 'getData':
+                $this->handleGetData();
+                break;
+            default:
+                $this->ajaxDie(json_encode(['error' => 'Unknown action']));
+        }
+    }
+
+    private function handleGetData(): void
+    {
+        $service = $this->module->getService(ModuleStarterService::class);
+        $data = $service->getData();
+
+        $this->ajaxDie(json_encode(['success' => true, 'data' => $data]));
+    }
+}
+```
+
+## 📋 Routes YAML (config/routes.yml)
+
+### Syntaxe de base
+
+```yaml
+route_name:
+    path: /module/controller/action
+    methods: [GET, POST]
+    defaults:
+        _controller: 'Namespace\Controller::method'
+        _legacy_controller: AdminControllerClassName  # Requis pour PS8/PS9
+        _legacy_link: AdminControllerClassName        # Optionnel
+    requirements:  # Pour les paramètres
+        id: \d+
+```
+
+### Exemple complet
+
+```yaml
+# Dashboard
+modulestarter_dashboard:
+    path: /modulestarter/dashboard
+    methods: [GET]
+    defaults:
+        _controller: 'ModuleStarter\Presentation\Controller\Admin\DashboardController::index'
+        _legacy_controller: AdminModuleStarterDashboard
+        _legacy_link: AdminModuleStarterDashboard
+
+# Configuration
+modulestarter_configuration:
+    path: /modulestarter/configuration
+    methods: [GET, POST]
+    defaults:
+        _controller: 'ModuleStarter\Presentation\Controller\Admin\ConfigurationController::configuration'
+        _legacy_controller: AdminModuleStarterConfiguration
+
+# CRUD avec paramètres
+modulestarter_items_edit:
+    path: /modulestarter/items/{itemId}/edit
+    methods: [GET, POST]
+    requirements:
+        itemId: \d+
+    defaults:
+        _controller: 'ModuleStarter\Presentation\Controller\Admin\ItemController::edit'
+        _legacy_controller: AdminModuleStarterItems
+```
+
+## ⚠️ CRITIQUE - Traductions avec TranslatorInterface
+
+### Problème : Service "translator" non disponible dans les contrôleurs
+
+Dans PrestaShop 8+, le service `translator` n'est **pas disponible** dans le service locator des contrôleurs. Appeler `$this->trans()` provoque l'erreur :
+
+```
+Service "translator" not found: the container inside the controller is a smaller 
+service locator that only knows about specific services.
+```
+
+### Solution : Injection de TranslatorInterface
+
+**TOUJOURS** injecter `TranslatorInterface` via le constructeur :
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Controller\Admin;
+
+use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
+use PrestaShopBundle\Security\Attribute\AdminSecurity;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Contracts\Translation\TranslatorInterface;
+
+class MyController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly TranslatorInterface $translator
+    ) {
+    }
+
+    #[AdminSecurity("is_granted('read', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+    public function index(): Response
+    {
+        return $this->render('@Modules/modulestarter/views/templates/admin/page.html.twig', [
+            // ✅ BON - Utiliser $this->translator->trans()
+            'layoutTitle' => $this->translator->trans('My Title', [], 'Modules.Modulestarter.Admin'),
+            'message' => $this->translator->trans('Welcome back!', [], 'Modules.Modulestarter.Admin'),
+            
+            // ✅ Avec paramètres
+            'count' => $this->translator->trans('Items: %count%', ['%count%' => 5], 'Modules.Modulestarter.Admin'),
+        ]);
+    }
+}
+```
+
+### ❌ NE JAMAIS faire
+
+```php
+// ❌ MAUVAIS - Appel direct à $this->trans() (service non disponible)
+'title' => $this->trans('Title', [], 'Modules.Modulestarter.Admin');  // Error!
+
+// ❌ MAUVAIS - Utiliser TranslatorCompatTrait (deprecated)
+use TranslatorCompatTrait;
+$title = $this->translate('Title', 'domain');  // Error!
+```
+
+### ✅ TOUJOURS faire
+
+```php
+use Symfony\Contracts\Translation\TranslatorInterface;
+
+class MyController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly TranslatorInterface $translator
+    ) {
+    }
+
+    public function myAction(): Response
+    {
+        // ✅ Signature: trans(string $id, array $parameters, string $domain)
+        $title = $this->translator->trans('Title', [], 'Modules.Modulestarter.Admin');
+        $message = $this->translator->trans('Welcome %name%', ['%name%' => $name], 'Modules.Modulestarter.Admin');
+    }
+}
+```
+
+### Signature de trans()
+
+| Méthode | Signature | Versions |
+|---------|-----------|----------|
+| `$this->translator->trans()` | `trans(string $id, array $parameters, string $domain)` | PS8 + PS9 ✅ |
+
+**Note :** L'ordre des paramètres est `($id, $parameters, $domain)` - les paramètres AVANT le domain.
+
+## ✅ Bonnes Pratiques
+
+| Pratique | Description |
+|---|---|
+| **TranslatorInterface** | Injecter via constructeur dans TOUS les controllers admin |
+| **AdminSecurity** | `#[AdminSecurity(..., redirectRoute: 'admin_module_manage')]` |
+| **Casting IDs** | `(int) $lang['id_lang']` pour PS8/PS9 |
+| **CSRF** | `$this->isCsrfTokenValid()` pour POST/DELETE |
+| **PRG Pattern** | Rediriger après POST pour éviter double soumission |
+| **Flash Messages** | `$this->addFlash('success', ...)` pour feedback |
+| **DI** | Injection via constructeur, pas de new dans les méthodes |
+| **Services** | Logique métier dans services, pas dans controllers |
+| **Types stricts** | `int $id`, `?string $name` sur toutes les méthodes |
+| **Traductions** | `$this->translator->trans($id, [], $domain)` - paramètres AVANT domain |
+
+## ⚠️ CRITIQUE - Routes Symfony et getContent()
+
+### Approche simple pour PS8/PS9
+
+**Ne PAS rediriger** vers les routes Symfony dans `getContent()` :
+
+```php
+// ✅ CORRECT - Simple et fonctionne partout
+public function getContent(): string
+{
+    return $this->renderLegacyConfigurationForm();
+}
+```
+
+```php
+// ❌ INCORRECT - Problèmes de cache en PS8
+public function getContent(): string
+{
+    $router = $this->getContainer()->get('router');
+    $url = $router->generate('modulestarter_dashboard');
+    Tools::redirectAdmin($url); // Routes pas disponibles après install
+}
+```
+
+**Pourquoi ?** Dans PS8, les routes Symfony nécessitent la recompilation du cache. En affichant directement le contenu dans `getContent()`, on évite ce problème. Le dashboard reste accessible via le menu admin (onglet installé).
+
+### Casting des IDs API
+
+**PrestaShop 8** retourne les IDs comme **string**, **PS9** comme **int** :
+
+```php
+// ✅ CORRECT - Toujours caster
+$langId = (int) $lang['id_lang'];    // PS8: "1" → 1, PS9: 1 → 1
+$shopId = (int) $shop['id_shop'];    // PS8: "2" → 2, PS9: 2 → 2
+
+// ❌ ERREUR - TypeError en PS8 avec strict_types
+$this->getTranslatedName($name, $lang['id_lang']); // PS8: "1" → TypeError
+```
+
+**Exemple corrigé dans `TabInstaller.php` :**
+```php
+// ✅ CORRECT - Casting systématique
+$expectedName = $this->getTranslatedName($nameConfig, (int) $lang['id_lang']);
+$tab->name[$lang['id_lang']] = $this->getTranslatedName($nameConfig, (int) $lang['id_lang']);
+```
+
+**Pourquoi ?** Avec `declare(strict_types=1)`, PHP exige des types exacts. Le cast `(int)` est une opération sans coût qui garantit la compatibilité.
+
+## ⚠️ AdminSecurity - Attributes PHP 8 obligatoires (PS9)
+
+PrestaShop 9 utilise les **Attributes PHP 8** (`#[AdminSecurity]`), pas les annotations docblock (`@AdminSecurity`).
+De plus, `admin_domain` est la route de redirection par défaut, qui n'existe pas.
+
+**Erreur courante:**
+```
+No route found for "GET /admin-dev/modules/.../admin_domain"
+```
+
+**Solution: Utiliser les Attributes PHP 8 avec `redirectRoute`** :
+
+```php
+use PrestaShopBundle\Security\Attribute\AdminSecurity;
+
+// ❌ MAUVAIS - Annotations docblock (PS 1.7/8.0 legacy)
+/**
+ * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))")
+ */
+public function index(): Response
+
+// ⚠️ RISQUÉ - _legacy_controller peut ne pas avoir de permissions configurées
+#[AdminSecurity("is_granted('read', request.get('_legacy_controller'))", redirectRoute: 'admin_module_manage')]
+public function index(): Response
+
+// ✅ BON - Utiliser AdminModules comme contrôleur de référence
+#[AdminSecurity("is_granted('read', 'AdminModules')", redirectRoute: 'admin_module_manage')]
+public function index(): Response
+```
+
+**Routes de redirection valides PS9:**
+- `admin_module_manage` - Page des modules
+- `admin_products_index` - Liste produits
+- `admin_orders_index` - Liste commandes
+
+**Import obligatoire:**
+```php
+use PrestaShopBundle\Security\Attribute\AdminSecurity;  // ✅ Attribute
+// NOT: use PrestaShopBundle\Security\Annotation\AdminSecurity;  // ❌ Annotation
+```

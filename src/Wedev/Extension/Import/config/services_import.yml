@@ -1,0 +1,35 @@
+# Extension Import - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Extension/Import/config/services_import.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Parsers
+    Wepresta_Passwordless_Login\Wedev\Extension\Import\Parser\CsvParser:
+        public: true
+
+    Wepresta_Passwordless_Login\Wedev\Extension\Import\Parser\JsonParser:
+        public: true
+
+    Wepresta_Passwordless_Login\Wedev\Extension\Import\Parser\XmlParser:
+        public: true
+
+    # Alias courts
+    wedev.parser.csv:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Import\Parser\CsvParser
+        public: true
+
+    wedev.parser.json:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Import\Parser\JsonParser
+        public: true
+
+    wedev.parser.xml:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Import\Parser\XmlParser
+        public: true
+

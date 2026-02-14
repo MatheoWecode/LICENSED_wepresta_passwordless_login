@@ -1,0 +1,627 @@
+---
+description: Tests PHPUnit - Unit, Integration, Functional
+globs: ["tests/**/*.php", "phpunit.xml"]
+alwaysApply: false
+---
+
+# Tests PHPUnit
+
+## ⚙️ Configuration
+
+### phpunit.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.net/10.3/phpunit.xsd"
+    bootstrap="tests/bootstrap.php"
+    colors="true"
+    stopOnFailure="false"
+    testdox="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <directory>src/Domain/Entity</directory>
+            <directory>src/Domain/ValueObject</directory>
+        </exclude>
+    </source>
+
+    <coverage>
+        <report>
+            <html outputDirectory="coverage"/>
+            <clover outputFile="coverage/clover.xml"/>
+        </report>
+    </coverage>
+
+    <php>
+        <env name="APP_ENV" value="test"/>
+        <env name="KERNEL_CLASS" value="PrestaShop\PrestaShop\Kernel"/>
+    </php>
+</phpunit>
+```
+
+### Bootstrap
+
+```php
+<?php
+// tests/bootstrap.php
+
+declare(strict_types=1);
+
+// Autoload Composer
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// Simuler les constantes PrestaShop pour les tests unitaires
+if (!defined('_PS_VERSION_')) {
+    define('_PS_VERSION_', '8.1.0');
+}
+
+if (!defined('_DB_PREFIX_')) {
+    define('_DB_PREFIX_', 'ps_');
+}
+
+if (!defined('_PS_MODULE_DIR_')) {
+    define('_PS_MODULE_DIR_', dirname(__DIR__) . '/');
+}
+
+if (!defined('_MYSQL_ENGINE_')) {
+    define('_MYSQL_ENGINE_', 'InnoDB');
+}
+```
+
+## 🧪 Tests Unitaires
+
+### Tester un Value Object
+
+```php
+<?php
+// tests/Unit/Domain/ValueObject/ItemNameTest.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Tests\Unit\Domain\ValueObject;
+
+use ModuleStarter\Domain\Exception\InvalidItemNameException;
+use ModuleStarter\Domain\ValueObject\ItemName;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * @covers \ModuleStarter\Domain\ValueObject\ItemName
+ */
+final class ItemNameTest extends TestCase
+{
+    public function testCanBeCreatedWithValidName(): void
+    {
+        $name = new ItemName('Valid Name');
+
+        $this->assertSame('Valid Name', $name->getValue());
+        $this->assertSame('Valid Name', (string) $name);
+    }
+
+    public function testTrimsWhitespace(): void
+    {
+        $name = new ItemName('  Trimmed Name  ');
+
+        $this->assertSame('Trimmed Name', $name->getValue());
+    }
+
+    /**
+     * @dataProvider invalidNamesProvider
+     */
+    public function testThrowsExceptionForInvalidName(string $invalidName, string $expectedMessage): void
+    {
+        $this->expectException(InvalidItemNameException::class);
+        $this->expectExceptionMessageMatches($expectedMessage);
+
+        new ItemName($invalidName);
+    }
+
+    public static function invalidNamesProvider(): array
+    {
+        return [
+            'empty string' => ['', '/at least/'],
+            'single char' => ['A', '/at least/'],
+            'only whitespace' => ['   ', '/at least/'],
+            'too long' => [str_repeat('a', 256), '/exceed/'],
+        ];
+    }
+
+    public function testEquality(): void
+    {
+        $name1 = new ItemName('Same Name');
+        $name2 = new ItemName('Same Name');
+        $name3 = new ItemName('Different Name');
+
+        $this->assertTrue($name1->equals($name2));
+        $this->assertFalse($name1->equals($name3));
+    }
+}
+```
+
+### Tester une Entité
+
+```php
+<?php
+// tests/Unit/Domain/Entity/ItemTest.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Tests\Unit\Domain\Entity;
+
+use ModuleStarter\Domain\Entity\Item;
+use ModuleStarter\Domain\ValueObject\ItemName;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * @covers \ModuleStarter\Domain\Entity\Item
+ */
+final class ItemTest extends TestCase
+{
+    private Item $item;
+
+    protected function setUp(): void
+    {
+        $this->item = new Item(new ItemName('Test Item'));
+    }
+
+    public function testNewItemIsActiveByDefault(): void
+    {
+        $this->assertTrue($this->item->isActive());
+    }
+
+    public function testNewItemHasPositionZero(): void
+    {
+        $this->assertSame(0, $this->item->getPosition());
+    }
+
+    public function testCanDeactivateItem(): void
+    {
+        $this->item->deactivate();
+
+        $this->assertFalse($this->item->isActive());
+    }
+
+    public function testCanActivateItem(): void
+    {
+        $this->item->deactivate();
+        $this->item->activate();
+
+        $this->assertTrue($this->item->isActive());
+    }
+
+    public function testActivatingAlreadyActiveItemDoesNothing(): void
+    {
+        $originalUpdatedAt = $this->item->getUpdatedAt();
+
+        // Petit délai pour vérifier que le timestamp n'a pas changé
+        usleep(1000);
+        $this->item->activate();
+
+        // Le timestamp ne devrait pas avoir changé
+        $this->assertEquals($originalUpdatedAt, $this->item->getUpdatedAt());
+    }
+
+    public function testCanRenameItem(): void
+    {
+        $newName = new ItemName('New Name');
+        $this->item->rename($newName);
+
+        $this->assertSame('New Name', $this->item->getName()->getValue());
+    }
+
+    public function testMoveUpDecreasesPosition(): void
+    {
+        // Simuler une position existante
+        $reflection = new \ReflectionClass($this->item);
+        $prop = $reflection->getProperty('position');
+        $prop->setAccessible(true);
+        $prop->setValue($this->item, 5);
+
+        $this->item->moveUp();
+
+        $this->assertSame(4, $this->item->getPosition());
+    }
+
+    public function testMoveUpAtZeroDoesNothing(): void
+    {
+        $this->item->moveUp();
+
+        $this->assertSame(0, $this->item->getPosition());
+    }
+
+    public function testMoveDownIncreasesPosition(): void
+    {
+        $this->item->moveDown();
+
+        $this->assertSame(1, $this->item->getPosition());
+    }
+}
+```
+
+### Tester un Service
+
+```php
+<?php
+// tests/Unit/Application/Service/ModuleStarterServiceTest.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Tests\Unit\Application\Service;
+
+use ModuleStarter\Application\Service\ModuleStarterService;
+use ModuleStarter\Domain\Entity\Item;
+use ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface;
+use ModuleStarter\Domain\ValueObject\ItemId;
+use ModuleStarter\Domain\ValueObject\ItemName;
+use ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+
+/**
+ * @covers \ModuleStarter\Application\Service\ModuleStarterService
+ */
+final class ModuleStarterServiceTest extends TestCase
+{
+    private ModuleStarterRepositoryInterface&MockObject $repository;
+    private ConfigurationAdapter&MockObject $config;
+    private LoggerInterface&MockObject $logger;
+    private ModuleStarterService $service;
+
+    protected function setUp(): void
+    {
+        $this->repository = $this->createMock(ModuleStarterRepositoryInterface::class);
+        $this->config = $this->createMock(ConfigurationAdapter::class);
+        $this->logger = $this->createMock(LoggerInterface::class);
+
+        $this->service = new ModuleStarterService(
+            $this->repository,
+            $this->config,
+            $this->logger
+        );
+    }
+
+    public function testCreateItemSavesToRepository(): void
+    {
+        $this->repository
+            ->expects($this->once())
+            ->method('save')
+            ->with($this->isInstanceOf(Item::class));
+
+        $this->logger
+            ->expects($this->once())
+            ->method('info')
+            ->with('Item created', $this->anything());
+
+        $item = $this->service->create('New Item', 'Description');
+
+        $this->assertSame('New Item', $item->getName()->getValue());
+    }
+
+    public function testGetActiveItemsReturnsEmptyWhenModuleDisabled(): void
+    {
+        $this->config
+            ->expects($this->once())
+            ->method('getBool')
+            ->with('MODULESTARTER_ACTIVE', true)
+            ->willReturn(false);
+
+        $this->repository
+            ->expects($this->never())
+            ->method('findActive');
+
+        $result = $this->service->getActiveItems();
+
+        $this->assertSame([], $result);
+    }
+
+    public function testGetActiveItemsReturnsItemsWhenModuleEnabled(): void
+    {
+        $items = [
+            $this->createItem(1, 'Item 1'),
+            $this->createItem(2, 'Item 2'),
+        ];
+
+        $this->config
+            ->method('getBool')
+            ->willReturn(true);
+
+        $this->repository
+            ->expects($this->once())
+            ->method('findActive')
+            ->willReturn($items);
+
+        $result = $this->service->getActiveItems();
+
+        $this->assertCount(2, $result);
+    }
+
+    public function testToggleActivatesInactiveItem(): void
+    {
+        $item = $this->createItem(1, 'Inactive Item', false);
+
+        $this->repository
+            ->method('find')
+            ->with($this->equalTo(new ItemId(1)))
+            ->willReturn($item);
+
+        $this->repository
+            ->expects($this->once())
+            ->method('save');
+
+        $result = $this->service->toggle(new ItemId(1));
+
+        $this->assertTrue($result->isActive());
+    }
+
+    public function testToggleDeactivatesActiveItem(): void
+    {
+        $item = $this->createItem(1, 'Active Item', true);
+
+        $this->repository
+            ->method('find')
+            ->willReturn($item);
+
+        $this->repository
+            ->expects($this->once())
+            ->method('save');
+
+        $result = $this->service->toggle(new ItemId(1));
+
+        $this->assertFalse($result->isActive());
+    }
+
+    public function testToggleReturnsNullForNonExistentItem(): void
+    {
+        $this->repository
+            ->method('find')
+            ->willReturn(null);
+
+        $result = $this->service->toggle(new ItemId(999));
+
+        $this->assertNull($result);
+    }
+
+    // Helper pour créer des items mockés
+    private function createItem(int $id, string $name, bool $active = true): Item
+    {
+        return Item::reconstitute(
+            new ItemId($id),
+            new ItemName($name),
+            '',
+            $active,
+            0,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable()
+        );
+    }
+}
+```
+
+## 🔗 Tests d'Intégration
+
+### Tester le Repository
+
+```php
+<?php
+// tests/Integration/Infrastructure/Repository/ItemRepositoryTest.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Tests\Integration\Infrastructure\Repository;
+
+use ModuleStarter\Domain\Entity\Item;
+use ModuleStarter\Domain\ValueObject\ItemName;
+use ModuleStarter\Infrastructure\Repository\DbItemRepository;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * @covers \ModuleStarter\Infrastructure\Repository\DbItemRepository
+ * @group integration
+ * @group database
+ */
+final class ItemRepositoryTest extends TestCase
+{
+    private DbItemRepository $repository;
+
+    protected function setUp(): void
+    {
+        // Ce test nécessite une connexion DB réelle
+        // À utiliser avec DDEV ou un environnement de test
+
+        if (!$this->isDatabaseAvailable()) {
+            $this->markTestSkipped('Database not available for integration tests.');
+        }
+
+        $this->repository = new DbItemRepository(
+            \Db::getInstance(),
+            _DB_PREFIX_
+        );
+
+        $this->cleanDatabase();
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->isDatabaseAvailable()) {
+            $this->cleanDatabase();
+        }
+    }
+
+    public function testCanSaveAndRetrieveItem(): void
+    {
+        $item = new Item(new ItemName('Integration Test Item'));
+
+        $this->repository->save($item);
+
+        $this->assertNotNull($item->getId());
+
+        $retrieved = $this->repository->find($item->getId());
+
+        $this->assertNotNull($retrieved);
+        $this->assertSame('Integration Test Item', $retrieved->getName()->getValue());
+    }
+
+    public function testFindActiveReturnsOnlyActiveItems(): void
+    {
+        $activeItem = new Item(new ItemName('Active'));
+        $this->repository->save($activeItem);
+
+        $inactiveItem = new Item(new ItemName('Inactive'));
+        $inactiveItem->deactivate();
+        $this->repository->save($inactiveItem);
+
+        $results = $this->repository->findActive();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Active', $results[0]->getName()->getValue());
+    }
+
+    public function testDeleteRemovesItem(): void
+    {
+        $item = new Item(new ItemName('To Delete'));
+        $this->repository->save($item);
+
+        $id = $item->getId();
+
+        $this->repository->delete($item);
+
+        $this->assertNull($this->repository->find($id));
+    }
+
+    private function isDatabaseAvailable(): bool
+    {
+        try {
+            \Db::getInstance()->execute('SELECT 1');
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    private function cleanDatabase(): void
+    {
+        \Db::getInstance()->execute(
+            'TRUNCATE TABLE `' . _DB_PREFIX_ . 'modulestarter_item`'
+        );
+    }
+}
+```
+
+## 🎭 Tests avec Mocks
+
+### Mocker les dépendances PrestaShop
+
+```php
+<?php
+// tests/Unit/ModuleStarterTest.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Tests\Unit;
+
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Test du module principal.
+ */
+final class ModuleStarterTest extends TestCase
+{
+    private $contextMock;
+
+    protected function setUp(): void
+    {
+        // Mock du Context PrestaShop
+        $this->contextMock = $this->createMock(\Context::class);
+
+        // Mock du Smarty
+        $smartyMock = $this->createMock(\Smarty::class);
+        $this->contextMock->smarty = $smartyMock;
+
+        // Mock du Link
+        $linkMock = $this->createMock(\Link::class);
+        $this->contextMock->link = $linkMock;
+
+        // Mock du Controller
+        $controllerMock = $this->createMock(\FrontController::class);
+        $this->contextMock->controller = $controllerMock;
+
+        // Mock de la langue
+        $langMock = new \stdClass();
+        $langMock->id = 1;
+        $langMock->iso_code = 'fr';
+        $this->contextMock->language = $langMock;
+
+        // Mock du shop
+        $shopMock = new \stdClass();
+        $shopMock->id = 1;
+        $this->contextMock->shop = $shopMock;
+    }
+
+    public function testModuleHasCorrectName(): void
+    {
+        // On ne peut pas instancier le module directement en test unitaire
+        // sans PrestaShop, mais on peut tester la logique isolée
+
+        $this->assertTrue(true);
+    }
+}
+```
+
+## 📊 Code Coverage
+
+### Exécuter avec coverage
+
+```bash
+# Exécuter tous les tests
+composer phpunit
+
+# Exécuter uniquement les tests unitaires
+./vendor/bin/phpunit --testsuite Unit
+
+# Exécuter avec coverage HTML
+./vendor/bin/phpunit --coverage-html coverage/
+
+# Exécuter un test spécifique
+./vendor/bin/phpunit --filter testCanBeCreatedWithValidName
+
+# Exécuter un groupe de tests
+./vendor/bin/phpunit --group integration
+```
+
+### composer.json scripts
+
+```json
+{
+    "scripts": {
+        "phpunit": "phpunit --colors=always",
+        "phpunit:coverage": "phpunit --coverage-html coverage/",
+        "phpunit:unit": "phpunit --testsuite Unit",
+        "phpunit:integration": "phpunit --testsuite Integration"
+    }
+}
+```
+
+## ✅ Bonnes Pratiques
+
+1. **Test par comportement** - Tester ce que fait le code, pas comment
+2. **Arrange-Act-Assert** - Structure claire des tests
+3. **Noms descriptifs** - `testCanBeCreatedWithValidName`
+4. **Data Providers** - Pour tester plusieurs cas
+5. **Isolation** - Chaque test est indépendant
+6. **Mocks pour les dépendances** - Pas de vraies connexions en unit tests
+7. **setUp/tearDown** - Préparer/nettoyer l'environnement
+8. **@covers** annotation - Documenter ce qui est testé

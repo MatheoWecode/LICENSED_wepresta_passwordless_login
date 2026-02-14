@@ -1,0 +1,99 @@
+---
+description: Architecture Clean pour modules PrestaShop
+globs: ["src/**/*.php"]
+alwaysApply: true
+---
+
+# Architecture Module PrestaShop
+
+## Structure Clean Architecture
+
+```
+src/
+├── Wedev/             # ⚠️ NE PAS MODIFIER - Framework WEDEV
+│   ├── Core/          # Adapters, Traits, Repository abstrait
+│   └── Extension/     # Extensions (UI, EntityPicker, Http...)
+├── _example/          # 📝 Exemples à copier puis supprimer
+├── Application/       # 👤 Votre code applicatif
+├── Domain/            # 👤 Votre code métier
+├── Infrastructure/    # 👤 Vos implémentations
+└── Presentation/      # 👤 Vos contrôleurs
+```
+
+## Règles de Dépendances
+
+```
+Presentation → Application → Domain ← Infrastructure
+```
+
+- Domain ne dépend de rien
+- Infrastructure implémente les interfaces du Domain
+- Application orchestre Domain + Infrastructure
+- Presentation appelle Application
+
+## Conventions
+
+### Fichiers PHP
+```php
+<?php
+declare(strict_types=1);
+
+namespace MonModule\Application\Service;
+
+// Imports groupés: PHP natif, Symfony, PrestaShop, Module
+use DateTimeImmutable;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use PrestaShop\PrestaShop\Core\Module\Module;
+use MonModule\Domain\Entity\MonEntite;
+```
+
+### Classes
+| Type | Convention | Exemple |
+|------|-----------|---------|
+| Entity | Singulier, PascalCase | `Product`, `Order` |
+| Repository | Interface + Impl | `ProductRepositoryInterface`, `ProductRepository` |
+| Service | Suffixe Service | `ProductService`, `PriceCalculatorService` |
+| Exception | Suffixe Exception | `EntityNotFoundException` |
+
+### Dossiers
+- `Application/Command/` - Commandes CQRS (écriture)
+- `Application/Query/` - Queries CQRS (lecture)
+- `Application/Service/` - Services applicatifs
+- `Domain/Entity/` - Entités métier
+- `Domain/Repository/` - Interfaces repository
+- `Infrastructure/Repository/` - Implémentations repository
+
+## Anti-Patterns à Éviter
+
+```php
+// ❌ NE PAS accéder à Db directement dans Domain
+class Product {
+    public function save() {
+        Db::getInstance()->insert(...); // INTERDIT
+    }
+}
+
+// ✅ Utiliser le Repository
+class ProductService {
+    public function create(Product $product): int {
+        return $this->repository->save($product);
+    }
+}
+```
+
+## Services Symfony
+
+```yaml
+# config/services.yml
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    MonModule\Application\:
+        resource: '../src/Application/*'
+
+    MonModule\Infrastructure\:
+        resource: '../src/Infrastructure/*'
+```

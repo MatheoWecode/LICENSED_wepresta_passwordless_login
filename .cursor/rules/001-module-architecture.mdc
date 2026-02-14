@@ -1,0 +1,737 @@
+---
+description: Architecture Clean du module - Layers et responsabilités
+globs: ["src/**/*.php"]
+alwaysApply: false
+---
+
+# Architecture Clean du Module
+
+## 🏗️ Principe des Layers
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRESENTATION LAYER                        │
+│  (Controllers, Grids, Templates)                             │
+│  → Gère l'interface utilisateur, reçoit les requêtes        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    APPLICATION LAYER                         │
+│  (Services, Commands, Queries, Forms)                        │
+│  → Orchestre les use cases, valide les données              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      DOMAIN LAYER                            │
+│  (Entities, Repository Interfaces, Value Objects)            │
+│  → Contient la logique métier pure, aucune dépendance       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  INFRASTRUCTURE LAYER                        │
+│  (Repository Impl, Adapters, External Services)              │
+│  → Implémente les interfaces, communique avec l'extérieur   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 📦 Domain Layer
+
+Le cœur du module. **Aucune dépendance externe**.
+
+### Entities
+
+```php
+<?php
+// src/Domain/Entity/Item.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\Entity;
+
+use DateTimeImmutable;
+use ModuleStarter\Domain\ValueObject\ItemId;
+use ModuleStarter\Domain\ValueObject\ItemName;
+
+/**
+ * Entité Item du domaine.
+ *
+ * Représente un élément géré par le module.
+ * Contient uniquement la logique métier, pas de persistence.
+ */
+final class Item
+{
+    private ?ItemId $id = null;
+    private ItemName $name;
+    private string $description = '';
+    private bool $active = true;
+    private int $position = 0;
+    private DateTimeImmutable $createdAt;
+    private DateTimeImmutable $updatedAt;
+
+    public function __construct(ItemName $name)
+    {
+        $this->name = $name;
+        $this->createdAt = new DateTimeImmutable();
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    // =========================================================================
+    // DOMAIN LOGIC - Comportements métier
+    // =========================================================================
+
+    /**
+     * Active l'élément.
+     */
+    public function activate(): void
+    {
+        if ($this->active) {
+            return; // Déjà actif, rien à faire
+        }
+
+        $this->active = true;
+        $this->touch();
+    }
+
+    /**
+     * Désactive l'élément.
+     */
+    public function deactivate(): void
+    {
+        $this->active = false;
+        $this->touch();
+    }
+
+    /**
+     * Change le nom avec validation métier.
+     *
+     * @throws \InvalidArgumentException Si le nom est invalide
+     */
+    public function rename(ItemName $newName): void
+    {
+        if ($this->name->equals($newName)) {
+            return;
+        }
+
+        $this->name = $newName;
+        $this->touch();
+    }
+
+    /**
+     * Monte l'élément d'une position.
+     */
+    public function moveUp(): void
+    {
+        if ($this->position > 0) {
+            $this->position--;
+            $this->touch();
+        }
+    }
+
+    /**
+     * Descend l'élément d'une position.
+     */
+    public function moveDown(): void
+    {
+        $this->position++;
+        $this->touch();
+    }
+
+    /**
+     * Met à jour le timestamp de modification.
+     */
+    private function touch(): void
+    {
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    // =========================================================================
+    // GETTERS - Pas de setters publics (encapsulation)
+    // =========================================================================
+
+    public function getId(): ?ItemId
+    {
+        return $this->id;
+    }
+
+    public function getName(): ItemName
+    {
+        return $this->name;
+    }
+
+    public function getDescription(): string
+    {
+        return $this->description;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
+
+    public function getPosition(): int
+    {
+        return $this->position;
+    }
+
+    // =========================================================================
+    // FACTORY / RECONSTITUTION
+    // =========================================================================
+
+    /**
+     * Reconstitue une entité depuis les données persistées.
+     *
+     * Utilisé par le Repository lors du chargement depuis la DB.
+     */
+    public static function reconstitute(
+        ItemId $id,
+        ItemName $name,
+        string $description,
+        bool $active,
+        int $position,
+        DateTimeImmutable $createdAt,
+        DateTimeImmutable $updatedAt
+    ): self {
+        $item = new self($name);
+        $item->id = $id;
+        $item->description = $description;
+        $item->active = $active;
+        $item->position = $position;
+        $item->createdAt = $createdAt;
+        $item->updatedAt = $updatedAt;
+
+        return $item;
+    }
+}
+```
+
+### Value Objects
+
+```php
+<?php
+// src/Domain/ValueObject/ItemName.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\ValueObject;
+
+use ModuleStarter\Domain\Exception\InvalidItemNameException;
+
+/**
+ * Value Object représentant le nom d'un Item.
+ *
+ * Immutable, validé à la construction.
+ */
+final class ItemName
+{
+    private const MIN_LENGTH = 2;
+    private const MAX_LENGTH = 255;
+
+    private string $value;
+
+    public function __construct(string $value)
+    {
+        $value = trim($value);
+        $this->validate($value);
+        $this->value = $value;
+    }
+
+    private function validate(string $value): void
+    {
+        $length = mb_strlen($value);
+
+        if ($length < self::MIN_LENGTH) {
+            throw InvalidItemNameException::tooShort(self::MIN_LENGTH);
+        }
+
+        if ($length > self::MAX_LENGTH) {
+            throw InvalidItemNameException::tooLong(self::MAX_LENGTH);
+        }
+    }
+
+    public function getValue(): string
+    {
+        return $this->value;
+    }
+
+    public function equals(self $other): bool
+    {
+        return $this->value === $other->value;
+    }
+
+    public function __toString(): string
+    {
+        return $this->value;
+    }
+}
+```
+
+### Repository Interfaces
+
+```php
+<?php
+// src/Domain/Repository/ItemRepositoryInterface.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\Repository;
+
+use ModuleStarter\Domain\Entity\Item;
+use ModuleStarter\Domain\ValueObject\ItemId;
+
+/**
+ * Interface du Repository Item.
+ *
+ * Définit le contrat de persistance sans détails d'implémentation.
+ * Le Domain Layer ne connaît pas la base de données.
+ */
+interface ItemRepositoryInterface
+{
+    /**
+     * Trouve un Item par son ID.
+     */
+    public function find(ItemId $id): ?Item;
+
+    /**
+     * Trouve tous les Items actifs.
+     *
+     * @return Item[]
+     */
+    public function findActive(): array;
+
+    /**
+     * Trouve tous les Items.
+     *
+     * @return Item[]
+     */
+    public function findAll(): array;
+
+    /**
+     * Sauvegarde un Item (insert ou update).
+     */
+    public function save(Item $item): void;
+
+    /**
+     * Supprime un Item.
+     */
+    public function delete(Item $item): void;
+
+    /**
+     * Génère le prochain ID disponible.
+     */
+    public function nextIdentity(): ItemId;
+}
+```
+
+### Domain Exceptions
+
+```php
+<?php
+// src/Domain/Exception/InvalidItemNameException.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\Exception;
+
+use DomainException;
+
+/**
+ * Exception levée quand un nom d'Item est invalide.
+ */
+final class InvalidItemNameException extends DomainException
+{
+    public static function tooShort(int $minLength): self
+    {
+        return new self(
+            sprintf('Item name must be at least %d characters.', $minLength)
+        );
+    }
+
+    public static function tooLong(int $maxLength): self
+    {
+        return new self(
+            sprintf('Item name cannot exceed %d characters.', $maxLength)
+        );
+    }
+
+    public static function empty(): self
+    {
+        return new self('Item name cannot be empty.');
+    }
+}
+```
+
+## 🔧 Application Layer
+
+Orchestre les use cases. Dépend du Domain, pas de l'Infrastructure.
+
+### Services
+
+```php
+<?php
+// src/Application/Service/ItemService.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Application\Service;
+
+use ModuleStarter\Domain\Entity\Item;
+use ModuleStarter\Domain\Repository\ItemRepositoryInterface;
+use ModuleStarter\Domain\ValueObject\ItemId;
+use ModuleStarter\Domain\ValueObject\ItemName;
+use ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
+/**
+ * Service applicatif pour la gestion des Items.
+ *
+ * Orchestre les opérations métier, gère les transactions,
+ * délègue au Domain pour la logique métier.
+ */
+final class ItemService
+{
+    private LoggerInterface $logger;
+
+    public function __construct(
+        private readonly ItemRepositoryInterface $repository,
+        private readonly ConfigurationAdapter $config,
+        ?LoggerInterface $logger = null
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Crée un nouvel Item.
+     *
+     * @throws \InvalidArgumentException Si les données sont invalides
+     */
+    public function create(string $name, string $description = ''): Item
+    {
+        // Validation via Value Object
+        $itemName = new ItemName($name);
+
+        // Création de l'entité
+        $item = new Item($itemName);
+
+        // Configuration initiale
+        if ($description !== '') {
+            // On utiliserait un setter interne ou une méthode dédiée
+        }
+
+        // Persistance
+        $this->repository->save($item);
+
+        // Log
+        $this->logger->info('Item created', [
+            'id' => $item->getId()?->getValue(),
+            'name' => $item->getName()->getValue(),
+        ]);
+
+        return $item;
+    }
+
+    /**
+     * Récupère les Items actifs.
+     *
+     * @return Item[]
+     */
+    public function getActiveItems(): array
+    {
+        if (!$this->isModuleEnabled()) {
+            return [];
+        }
+
+        return $this->repository->findActive();
+    }
+
+    /**
+     * Active/Désactive un Item.
+     */
+    public function toggle(ItemId $id): ?Item
+    {
+        $item = $this->repository->find($id);
+
+        if ($item === null) {
+            return null;
+        }
+
+        if ($item->isActive()) {
+            $item->deactivate();
+        } else {
+            $item->activate();
+        }
+
+        $this->repository->save($item);
+
+        return $item;
+    }
+
+    /**
+     * Vérifie si le module est activé.
+     */
+    private function isModuleEnabled(): bool
+    {
+        return $this->config->getBool('MODULESTARTER_ACTIVE', true);
+    }
+}
+```
+
+### CQRS Pattern (optionnel)
+
+```php
+<?php
+// src/Application/Command/CreateItemCommand.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Application\Command;
+
+/**
+ * Command pour créer un Item.
+ *
+ * DTO immutable contenant les données nécessaires.
+ */
+final class CreateItemCommand
+{
+    public function __construct(
+        public readonly string $name,
+        public readonly string $description = '',
+        public readonly bool $active = true
+    ) {
+    }
+}
+
+// src/Application/Command/CreateItemHandler.php
+
+final class CreateItemHandler
+{
+    public function __construct(
+        private readonly ItemRepositoryInterface $repository
+    ) {
+    }
+
+    public function __invoke(CreateItemCommand $command): Item
+    {
+        $item = new Item(new ItemName($command->name));
+        // ...
+        $this->repository->save($item);
+
+        return $item;
+    }
+}
+```
+
+## 🔌 Infrastructure Layer
+
+Implémentations concrètes. Dépend du Domain (interfaces).
+
+### Repository Implementation
+
+```php
+<?php
+// src/Infrastructure/Repository/DbItemRepository.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Infrastructure\Repository;
+
+use Db;
+use DbQuery;
+use ModuleStarter\Domain\Entity\Item;
+use ModuleStarter\Domain\Repository\ItemRepositoryInterface;
+use ModuleStarter\Domain\ValueObject\ItemId;
+use ModuleStarter\Domain\ValueObject\ItemName;
+
+/**
+ * Implémentation du Repository avec PrestaShop Db.
+ */
+final class DbItemRepository implements ItemRepositoryInterface
+{
+    private const TABLE = 'modulestarter_item';
+
+    public function __construct(
+        private readonly Db $db,
+        private readonly string $dbPrefix
+    ) {
+    }
+
+    public function find(ItemId $id): ?Item
+    {
+        $query = new DbQuery();
+        $query->select('*')
+            ->from(self::TABLE)
+            ->where('id_item = ' . $id->getValue());
+
+        $row = $this->db->getRow($query);
+
+        if (!$row) {
+            return null;
+        }
+
+        return $this->hydrate($row);
+    }
+
+    public function findActive(): array
+    {
+        $query = new DbQuery();
+        $query->select('*')
+            ->from(self::TABLE)
+            ->where('active = 1')
+            ->orderBy('position ASC');
+
+        $rows = $this->db->executeS($query);
+
+        return array_map([$this, 'hydrate'], $rows ?: []);
+    }
+
+    public function save(Item $item): void
+    {
+        $data = [
+            'name' => pSQL($item->getName()->getValue()),
+            'description' => pSQL($item->getDescription()),
+            'active' => $item->isActive() ? 1 : 0,
+            'position' => $item->getPosition(),
+            'date_upd' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($item->getId() !== null) {
+            $this->db->update(
+                self::TABLE,
+                $data,
+                'id_item = ' . $item->getId()->getValue()
+            );
+        } else {
+            $data['date_add'] = date('Y-m-d H:i:s');
+            $this->db->insert(self::TABLE, $data);
+
+            // Injecter l'ID généré (nécessite reflection ou méthode interne)
+            $this->setItemId($item, (int) $this->db->Insert_ID());
+        }
+    }
+
+    public function delete(Item $item): void
+    {
+        if ($item->getId() === null) {
+            return;
+        }
+
+        $this->db->delete(
+            self::TABLE,
+            'id_item = ' . $item->getId()->getValue()
+        );
+    }
+
+    public function nextIdentity(): ItemId
+    {
+        // Pour les ID auto-increment, on retourne un placeholder
+        // L'ID réel sera assigné après INSERT
+        return ItemId::generate();
+    }
+
+    private function hydrate(array $row): Item
+    {
+        return Item::reconstitute(
+            new ItemId((int) $row['id_item']),
+            new ItemName($row['name']),
+            $row['description'] ?? '',
+            (bool) $row['active'],
+            (int) $row['position'],
+            new \DateTimeImmutable($row['date_add']),
+            new \DateTimeImmutable($row['date_upd'])
+        );
+    }
+
+    private function setItemId(Item $item, int $id): void
+    {
+        // Utiliser reflection pour setter l'ID privé
+        $reflection = new \ReflectionClass($item);
+        $property = $reflection->getProperty('id');
+        $property->setAccessible(true);
+        $property->setValue($item, new ItemId($id));
+    }
+}
+```
+
+## 🎨 Presentation Layer
+
+Interface utilisateur. Dépend de Application.
+
+### Controllers
+
+```php
+<?php
+// src/Presentation/Controller/Admin/ItemController.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Controller\Admin;
+
+use ModuleStarter\Application\Service\ItemService;
+use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
+use Symfony\Component\HttpFoundation\Response;
+
+final class ItemController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly ItemService $itemService
+    ) {
+    }
+
+    public function indexAction(): Response
+    {
+        $items = $this->itemService->getActiveItems();
+
+        return $this->render('@Modules/modulestarter/views/templates/admin/items/index.html.twig', [
+            'items' => $items,
+        ]);
+    }
+}
+```
+
+## 🔗 Injection de Dépendances
+
+```yaml
+# config/services.yml
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Domain Layer - Interfaces (pas d'implémentation ici)
+
+    # Infrastructure Layer
+    ModuleStarter\Infrastructure\Repository\DbItemRepository:
+        arguments:
+            $db: '@=service("prestashop.adapter.legacy.context").getContext().database'
+            $dbPrefix: '%database_prefix%'
+
+    # Alias Interface -> Implementation
+    ModuleStarter\Domain\Repository\ItemRepositoryInterface:
+        alias: ModuleStarter\Infrastructure\Repository\DbItemRepository
+
+    # Application Layer
+    ModuleStarter\Application\Service\ItemService:
+        arguments:
+            $repository: '@ModuleStarter\Domain\Repository\ItemRepositoryInterface'
+            $config: '@ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter'
+            $logger: '@?logger'
+        public: true
+
+    # Presentation Layer
+    ModuleStarter\Presentation\Controller\Admin\:
+        resource: '../src/Presentation/Controller/Admin/*'
+        tags: ['controller.service_arguments']
+```
+
+## ✅ Règles d'Architecture
+
+1. **Domain ne dépend de rien** - Pur PHP, pas de PrestaShop, pas de Symfony
+2. **Application dépend de Domain** - Utilise les interfaces, pas les implémentations
+3. **Infrastructure implémente Domain** - Repositories, Adapters concrets
+4. **Presentation dépend de Application** - Appelle les services, jamais les repos directement
+5. **Dépendances vers l'intérieur** - Jamais Domain vers Infrastructure

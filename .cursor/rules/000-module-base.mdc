@@ -1,0 +1,321 @@
+---
+description: Règles de base du module PrestaShop - Architecture et conventions
+globs: ["**/*.php", "**/*.js", "**/*.scss", "**/*.tpl", "**/*.twig"]
+alwaysApply: true
+---
+
+# Module PrestaShop - Règles de Base
+
+## ⚠️ IMPORTANT - Conventions de nommage
+
+`modulestarter` / `ModuleStarter` est le nom du **master-module template**.
+Lors de la génération d'un nouveau module avec `wedev ps module <nom>`, toutes les occurrences sont automatiquement remplacées :
+
+| Template | Exemple généré |
+|----------|---------------|
+| `modulestarter` | `mon_module` |
+| `ModuleStarter` | `MonModule` |
+| `MODULESTARTER` | `MON_MODULE` |
+| `Modulestarter` | `Monmodule` |
+
+**Dans ces règles**, lire `modulestarter` comme le nom de votre module actuel.
+
+## 🎯 Identité du Module
+
+Ce module suit l'architecture **Clean Architecture** pour PrestaShop 8.x/9.x:
+- **Application Layer**: Use cases, services, forms
+- **Domain Layer**: Entities, repository interfaces, value objects
+- **Infrastructure Layer**: Implémentations concrètes, adapters
+- **Presentation Layer**: Controllers, grids, templates
+
+## 📁 Structure du Projet
+
+```
+modulestarter/
+├── modulestarter.php           # Point d'entrée (hooks, install/uninstall)
+├── config/
+│   ├── routes.yml              # Routes Symfony admin
+│   └── services.yml            # Injection de dépendances
+├── src/
+│   ├── Wedev/                  # ⚠️ Framework WEDEV - NE PAS MODIFIER
+│   │   ├── Core/               # Adapters, Traits, Repository abstrait
+│   │   └── Extension/          # Extensions (UI, EntityPicker, Http...)
+│   │
+│   ├── _example/               # 📝 Exemples - À copier puis supprimer
+│   │   └── ...                 # Templates d'entités, services, controllers
+│   │
+│   ├── Application/            # 👤 VOTRE CODE - Logique applicative
+│   │   ├── Command/            # Write operations (CQRS)
+│   │   ├── Query/              # Read operations (CQRS)
+│   │   ├── Form/               # Form Types Symfony
+│   │   ├── Installer/          # Install/Uninstall logic
+│   │   └── Service/            # Business services
+│   ├── Domain/                 # 👤 VOTRE CODE - Logique métier pure
+│   │   ├── Entity/             # Entités du domaine
+│   │   ├── Repository/         # Interfaces repository
+│   │   ├── ValueObject/        # Value objects immutables
+│   │   ├── Event/              # Domain events
+│   │   └── Exception/          # Exceptions métier
+│   ├── Infrastructure/         # 👤 VOTRE CODE - Implémentations
+│   │   ├── Adapter/            # Adapters (Configuration, etc.)
+│   │   ├── Repository/         # Implémentations repository
+│   │   ├── EventSubscriber/    # Event subscribers Symfony
+│   │   └── Api/                # Contrôleurs API REST
+│   └── Presentation/           # 👤 VOTRE CODE - Interface utilisateur
+│       ├── Controller/         # Contrôleurs admin Symfony
+│       └── Grid/               # Grid Framework PrestaShop
+├── controllers/
+│   └── front/                  # Contrôleurs front legacy
+├── views/
+│   ├── css/, js/               # Assets compilés
+│   ├── dist/                   # Build Webpack
+│   └── templates/
+│       ├── admin/              # Templates Twig (back-office)
+│       ├── front/              # Templates Smarty (front-office)
+│       └── hook/               # Templates des hooks
+├── _dev/                       # Sources développement
+│   ├── js/                     # JavaScript ES6+
+│   ├── scss/                   # Styles SCSS
+│   └── images/                 # Images sources
+├── sql/                        # Scripts SQL
+├── tests/                      # Tests PHPUnit
+└── translations/               # Fichiers de traduction
+```
+
+### Séparation des responsabilités
+
+| Dossier | Responsabilité | Modifiable |
+|---------|----------------|------------|
+| `Wedev/` | Framework WEDEV (Core + Extensions) | ❌ Non |
+| `_example/` | Code d'exemple à copier | Supprimer après usage |
+| `Application/` | Votre logique applicative | ✅ Oui |
+| `Domain/` | Votre logique métier | ✅ Oui |
+| `Infrastructure/` | Vos implémentations | ✅ Oui |
+| `Presentation/` | Vos contrôleurs/grids | ✅ Oui |
+
+## ✅ Conventions de Nommage
+
+| Type | Convention | Exemple |
+|------|------------|---------|
+| Classes PHP | PascalCase | `ModuleStarterService` |
+| Méthodes | camelCase | `getActiveItems()` |
+| Variables | camelCase | `$itemCount` |
+| Constantes | UPPER_SNAKE | `DEFAULT_CONFIG` |
+| Fichiers PHP | PascalCase | `ConfigurationAdapter.php` |
+| Services | snake_case | `modulestarter.service` |
+| Routes | snake_case | `modulestarter_configuration` |
+| Config keys | UPPER_SNAKE | `MODULESTARTER_ACTIVE` |
+| Hooks | camelCase | `hookDisplayHome` |
+| Templates Smarty | kebab-case | `product-info.tpl` |
+| Templates Twig | kebab-case | `configuration.html.twig` |
+| CSS classes | BEM kebab-case | `.modulestarter-item__title` |
+
+## 🔒 Standards Obligatoires
+
+### PHP
+
+```php
+<?php
+// TOUJOURS en haut de chaque fichier PHP
+declare(strict_types=1);
+
+// Vérification PrestaShop (fichiers accessibles publiquement)
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
+// Typage strict sur TOUTES les méthodes
+public function getItem(int $id): ?ModuleStarterEntity
+{
+    // ...
+}
+
+// Properties typées (PHP 8.1+)
+private readonly ConfigurationAdapter $config;
+
+// Constructor promotion
+public function __construct(
+    private readonly ModuleStarterRepositoryInterface $repository,
+    private readonly ConfigurationAdapter $config
+) {
+}
+```
+
+### Imports
+
+```php
+// ✅ BON: Imports triés, groupés logiquement
+use ModuleStarter\Domain\Entity\ModuleStarterEntity;
+use ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface;
+use ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter;
+use PrestaShop\PrestaShop\Core\Grid\GridFactory;
+use Symfony\Component\HttpFoundation\Request;
+
+// ❌ MAUVAIS: Imports en désordre, non groupés
+use Symfony\Component\HttpFoundation\Request;
+use ModuleStarter\Domain\Entity\ModuleStarterEntity;
+use PrestaShop\PrestaShop\Core\Grid\GridFactory;
+```
+
+### Documentation
+
+```php
+/**
+ * Description courte de la classe.
+ *
+ * Description longue optionnelle expliquant le contexte,
+ * les responsabilités et les dépendances.
+ */
+final class ModuleStarterService
+{
+    /**
+     * Récupère les éléments actifs pour le front-office.
+     *
+     * @return ModuleStarterEntity[] Liste des entités actives triées par position
+     *
+     * @throws ServiceNotAvailableException Si le service est désactivé
+     */
+    public function getActiveItems(): array
+    {
+        // ...
+    }
+}
+```
+
+## 🚫 Anti-patterns à Éviter
+
+### Ne JAMAIS faire
+
+```php
+// ❌ Accès direct à la base de données dans le module principal
+Db::getInstance()->execute("SELECT * FROM ...");
+
+// ❌ Configuration hardcodée
+$apiKey = 'sk_live_xxx';
+
+// ❌ Superglobales directes
+$id = $_GET['id'];
+
+// ❌ echo/print dans les hooks
+public function hookDisplayHome($params) {
+    echo '<div>Hello</div>'; // ❌
+}
+
+// ❌ SQL sans escape
+$sql = "SELECT * FROM table WHERE name = '$name'"; // SQL INJECTION!
+
+// ❌ Mixed concerns dans le module principal
+public function hookDisplayHome($params) {
+    // ❌ Logique métier dans le hook
+    $products = Db::getInstance()->executeS("...");
+    $filtered = array_filter($products, ...);
+    // ...
+}
+```
+
+### Toujours faire
+
+```php
+// ✅ Utiliser le repository
+$items = $this->repository->findActive();
+
+// ✅ Configuration via adapter
+$apiKey = $this->config->get('MODULESTARTER_API_KEY');
+
+// ✅ Utiliser Tools
+$id = (int) Tools::getValue('id');
+
+// ✅ Retourner le HTML dans les hooks
+public function hookDisplayHome(array $params): string {
+    return $this->fetch('module:modulestarter/views/templates/hook/home.tpl');
+}
+
+// ✅ SQL sécurisé via pSQL
+$sql = "SELECT * FROM table WHERE name = '" . pSQL($name) . "'";
+
+// ✅ Déléguer au service
+public function hookDisplayHome(array $params): string {
+    $items = $this->getService(ModuleStarterService::class)->getActiveItems();
+    $this->context->smarty->assign(['items' => $items]);
+    return $this->fetch('...');
+}
+```
+
+## 🔄 Workflow de Développement
+
+1. **Créer l'entité** dans `Domain/Entity/`
+2. **Définir l'interface** repository dans `Domain/Repository/`
+3. **Implémenter** le repository dans `Infrastructure/Repository/`
+4. **Créer le service** dans `Application/Service/`
+5. **Enregistrer** dans `config/services.yml`
+6. **Créer le contrôleur** si nécessaire
+7. **Ajouter les templates**
+8. **Écrire les tests**
+
+## ⚠️ Pièges Courants à Éviter
+
+### Grid Framework (CRITIQUE)
+
+```yaml
+# ❌ NE JAMAIS auto-enregistrer les Grids - cause erreur autowiring
+ModuleStarter\Presentation\:
+    resource: '../src/Presentation/*'
+
+# ✅ TOUJOURS séparer Controllers et Grids
+ModuleStarter\Presentation\Controller\:
+    resource: '../src/Presentation/Controller/*'
+    tags: ['controller.service_arguments']
+
+# Les Grids doivent être configurés EXPLICITEMENT avec $dbPrefix
+```
+
+**Voir règle `019-module-grids.mdc` pour la configuration complète.**
+
+### Autres pièges
+
+| Piège | Solution |
+|-------|----------|
+| Grid dans auto-registration | Configurer explicitement avec `$dbPrefix: '%database_prefix%'` |
+| Forms dans auto-registration | Configurer avec `parent: 'form.type.translatable.aware'` |
+| Service non trouvé | Vérifier `public: true` pour les services utilisés hors container |
+| Erreur traduction | Utiliser `Modules.Modulestarter.Admin` comme domaine |
+| Route `admin_domain` introuvable | Utiliser `#[AdminSecurity(..., redirectRoute: 'admin_dashboard')]` (Attribute PHP 8) |
+| Annotations `@Route` conflits | Préférer `config/routes.yml` aux annotations |
+| **`buildSearchCriteriaFromRequest` n'existe pas (PS9)** | Construire `SearchCriteria` manuellement (voir ci-dessous) |
+
+### ⚠️ SearchCriteria dans PrestaShop 9 (CRITIQUE)
+
+La méthode `buildSearchCriteriaFromRequest` **n'existe pas** dans PrestaShop 9:
+
+```php
+// ❌ ERREUR - Cette méthode n'existe pas dans PS9
+$searchCriteria = $this->buildSearchCriteriaFromRequest($request, 'myentity');
+// UndefinedMethodError: Attempted to call an undefined method
+
+// ✅ SOLUTION - Construire manuellement
+use PrestaShop\PrestaShop\Core\Grid\Search\SearchCriteria;
+
+$filters = $request->query->all(MyEntityGridDefinitionFactory::GRID_ID) ?: [];
+$searchCriteria = new SearchCriteria(
+    $filters['filters'] ?? [],
+    $filters['orderBy'] ?? 'id_myentity',
+    $filters['sortOrder'] ?? 'desc',
+    (int) ($filters['offset'] ?? 0),
+    (int) ($filters['limit'] ?? 10)
+);
+$grid = $this->gridFactory->getGrid($searchCriteria);
+```
+
+**Voir règle `019-module-grids.mdc` pour l'exemple complet.**
+
+## 📋 Checklist avant Commit
+
+- [ ] `composer cs-check` passe
+- [ ] `composer phpstan` passe
+- [ ] `composer phpunit` passe
+- [ ] Pas de `var_dump`, `die()`, `dd()`
+- [ ] Tous les textes utilisent `$this->trans()`
+- [ ] Les nouvelles configs sont dans `DEFAULT_CONFIG`
+- [ ] Les nouveaux hooks sont dans `HOOKS`
+- [ ] Le SQL utilise `pSQL()` ou des paramètres bindés
+- [ ] **Grids configurés EXPLICITEMENT** (pas d'auto-registration)

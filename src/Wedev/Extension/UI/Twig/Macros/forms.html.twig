@@ -1,0 +1,243 @@
+{#
+ # =============================================================================
+ # WEDEV UI - Macros Twig pour Formulaires PrestaShop 9
+ # =============================================================================
+ # Utilisation: {% import '@WedevUI/Macros/forms.html.twig' as forms %}
+ #
+ # Ces macros facilitent la création de formulaires conformes au style PS9.
+ # =============================================================================
+ #}
+
+{# -----------------------------------------------------------------------------
+ # Form Group - Groupe de champ standard
+ # Usage: {{ forms.group(form.fieldName, 'Field Label', 'Help text') }}
+ # -------------------------------------------------------------------------- #}
+{% macro group(field, label, help, required) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3{{ required ? ' required' : '' }}">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        {{ form_widget(field) }}
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Switch Toggle - Interrupteur on/off
+ # Usage: {{ forms.switch(form.active, 'Enable feature') }}
+ # -------------------------------------------------------------------------- #}
+{% macro switch(field, label, help) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        <div class="custom-control custom-switch">
+            {{ form_widget(field, {attr: {class: 'custom-control-input'}}) }}
+            <label class="custom-control-label" for="{{ field.vars.id }}"></label>
+        </div>
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Select with search - Select2 style
+ # Usage: {{ forms.select_search(form.category, 'Category', choices) }}
+ # -------------------------------------------------------------------------- #}
+{% macro select_search(field, label, help) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        {{ form_widget(field, {attr: {class: 'custom-select'}}) }}
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Textarea with counter - Zone de texte avec compteur
+ # Usage: {{ forms.textarea_counter(form.description, 'Description', 500) }}
+ # -------------------------------------------------------------------------- #}
+{% macro textarea_counter(field, label, maxLength, help) %}
+{% set maxLength = maxLength|default(500) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        <div x-data="{ count: {{ field.vars.value|length }} }">
+            {{ form_widget(field, {attr: {
+                class: 'form-control',
+                maxlength: maxLength,
+                'x-on:input': 'count = $el.value.length',
+            }}) }}
+            <small class="form-text text-muted">
+                <span x-text="count">0</span> / {{ maxLength }} characters
+            </small>
+        </div>
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Color Picker - Sélecteur de couleur
+ # Usage: {{ forms.color_picker(form.color, 'Theme Color') }}
+ # -------------------------------------------------------------------------- #}
+{% macro color_picker(field, label, help) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        <div class="input-group" style="max-width: 200px;">
+            {{ form_widget(field, {attr: {class: 'form-control', type: 'color'}}) }}
+        </div>
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # File Upload - Upload de fichier
+ # Usage: {{ forms.file_upload(form.image, 'Image', 'Max 2MB, JPG/PNG') }}
+ # -------------------------------------------------------------------------- #}
+{% macro file_upload(field, label, help) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        <div class="custom-file">
+            {{ form_widget(field, {attr: {class: 'custom-file-input'}}) }}
+            <label class="custom-file-label" for="{{ field.vars.id }}" data-browse="Browse">Choose file</label>
+        </div>
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Submit Buttons - Boutons de soumission du formulaire
+ # Usage: {{ forms.submit_buttons('Save', 'Cancel', cancelHref) }}
+ # -------------------------------------------------------------------------- #}
+{% macro submit_buttons(saveLabel, cancelLabel, cancelHref) %}
+{% set saveLabel = saveLabel|default('Save') %}
+{% set cancelLabel = cancelLabel|default('Cancel') %}
+<div class="card-footer">
+    <div class="d-flex justify-content-end">
+        {% if cancelHref %}
+            <a href="{{ cancelHref }}" class="btn btn-outline-secondary mr-2">
+                {{ cancelLabel }}
+            </a>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">
+            <i class="material-icons">save</i>
+            {{ saveLabel }}
+        </button>
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Form Section - Section de formulaire avec titre
+ # Usage: {% call forms.section('General Settings', 'settings') %}...{% endcall %}
+ # -------------------------------------------------------------------------- #}
+{% macro section(title, icon) %}
+<div class="form-section mb-4">
+    <h4 class="form-section-title d-flex align-items-center mb-3">
+        {% if icon %}
+            <i class="material-icons mr-2">{{ icon }}</i>
+        {% endif %}
+        {{ title }}
+    </h4>
+    <hr class="mb-3">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Inline Radios - Boutons radio en ligne
+ # Usage: {{ forms.inline_radios(form.status, 'Status') }}
+ # -------------------------------------------------------------------------- #}
+{% macro inline_radios(field, label, help) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        <div class="d-flex flex-wrap">
+            {% for child in field %}
+                <div class="custom-control custom-radio mr-3">
+                    {{ form_widget(child, {attr: {class: 'custom-control-input'}}) }}
+                    <label class="custom-control-label" for="{{ child.vars.id }}">
+                        {{ child.vars.label }}
+                    </label>
+                </div>
+            {% endfor %}
+        </div>
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# -----------------------------------------------------------------------------
+ # Input Group - Champ avec addon (préfixe/suffixe)
+ # Usage: {{ forms.input_group(form.price, 'Price', null, '€') }}
+ # -------------------------------------------------------------------------- #}
+{% macro input_group(field, label, prefix, suffix, help) %}
+<div class="form-group row">
+    <label class="form-control-label col-lg-3">
+        {{ label }}
+    </label>
+    <div class="col-lg-9">
+        <div class="input-group">
+            {% if prefix %}
+                <div class="input-group-prepend">
+                    <span class="input-group-text">{{ prefix }}</span>
+                </div>
+            {% endif %}
+            {{ form_widget(field, {attr: {class: 'form-control'}}) }}
+            {% if suffix %}
+                <div class="input-group-append">
+                    <span class="input-group-text">{{ suffix }}</span>
+                </div>
+            {% endif %}
+        </div>
+        {{ form_errors(field) }}
+        {% if help %}
+            <small class="form-text text-muted">{{ help }}</small>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+
+

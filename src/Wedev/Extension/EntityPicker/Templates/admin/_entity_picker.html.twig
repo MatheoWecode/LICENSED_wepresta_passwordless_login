@@ -1,0 +1,142 @@
+{#
+ # WEDEV Extension - EntityPicker
+ #
+ # Macro Twig pour afficher un champ de sélection d'entités.
+ #
+ # Usage:
+ # {% import '@WedevEntityPicker/admin/_entity_picker.html.twig' as entityPicker %}
+ #
+ # {{ entityPicker.render({
+ #     name: 'products',
+ #     label: 'Produits associés',
+ #     search_url: path('my_module_search_products'),
+ #     fetch_url: path('my_module_fetch_products'),
+ #     multiple: true,
+ #     value: existingProductIds,
+ #     placeholder: 'Rechercher un produit...',
+ # }) }}
+ #}
+
+{% macro render(options) %}
+    {% set defaults = {
+        name: 'entities',
+        label: 'Entités',
+        entity_type: 'entity',
+        search_url: '',
+        fetch_url: '',
+        multiple: true,
+        min_chars: 2,
+        max_results: 20,
+        allow_clear: true,
+        placeholder: 'Rechercher...',
+        help_text: '',
+        value: [],
+        required: false,
+        disabled: false,
+        id: 'entity-picker-' ~ random(),
+    } %}
+    {% set config = defaults|merge(options) %}
+
+    <div class="form-group">
+        {% if config.label %}
+            <label for="{{ config.id }}-search" class="form-control-label{% if config.required %} required{% endif %}">
+                {{ config.label }}
+            </label>
+        {% endif %}
+
+        <div class="entity-picker"
+             id="{{ config.id }}"
+             data-search-url="{{ config.search_url }}"
+             data-fetch-url="{{ config.fetch_url }}"
+             data-entity-type="{{ config.entity_type }}"
+             data-multiple="{{ config.multiple ? 'true' : 'false' }}"
+             data-min-chars="{{ config.min_chars }}"
+             data-max-results="{{ config.max_results }}"
+             data-allow-clear="{{ config.allow_clear ? 'true' : 'false' }}"
+             data-placeholder="{{ config.placeholder }}">
+
+            {# Champ de recherche #}
+            <input type="text"
+                   id="{{ config.id }}-search"
+                   class="form-control entity-picker-search"
+                   placeholder="{{ config.placeholder }}"
+                   autocomplete="off"
+                   {% if config.disabled %}disabled{% endif %}>
+
+            {# Container des résultats de recherche #}
+            <div class="entity-picker-results list-group mt-2" style="max-height: 200px; overflow-y: auto;"></div>
+
+            {# Container des entités sélectionnées #}
+            <ul class="entity-picker-selected list-group mt-3"></ul>
+
+            {# Champ hidden pour stocker les IDs #}
+            <input type="hidden"
+                   name="{{ config.name }}"
+                   class="entity-picker-ids"
+                   value="{{ config.value is iterable ? config.value|json_encode : config.value }}"
+                   {% if config.required %}required{% endif %}
+                   {% if config.disabled %}disabled{% endif %}>
+        </div>
+
+        {% if config.help_text %}
+            <small class="form-text text-muted">{{ config.help_text }}</small>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{#
+ # Macro pour un EntityPicker de produits
+ #}
+{% macro products(options) %}
+    {% set defaults = {
+        entity_type: 'product',
+        label: 'Produits',
+        placeholder: 'Rechercher un produit...',
+    } %}
+    {{ _self.render(defaults|merge(options)) }}
+{% endmacro %}
+
+{#
+ # Macro pour un EntityPicker de catégories
+ #}
+{% macro categories(options) %}
+    {% set defaults = {
+        entity_type: 'category',
+        label: 'Catégories',
+        placeholder: 'Rechercher une catégorie...',
+    } %}
+    {{ _self.render(defaults|merge(options)) }}
+{% endmacro %}
+
+{#
+ # Macro pour un EntityPicker de clients
+ #}
+{% macro customers(options) %}
+    {% set defaults = {
+        entity_type: 'customer',
+        label: 'Clients',
+        placeholder: 'Rechercher un client...',
+    } %}
+    {{ _self.render(defaults|merge(options)) }}
+{% endmacro %}
+
+{#
+ # Macro pour inclure le JS (à placer une fois dans la page)
+ #}
+{% macro assets() %}
+    <script src="{{ asset('modules/wepresta_passwordless_login/views/js/entity-picker.js') }}"></script>
+{% endmacro %}
+
+{#
+ # Macro pour initialiser manuellement un picker (si ajouté dynamiquement)
+ #}
+{% macro init_script(selector) %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof WedevEntityPicker !== 'undefined') {
+                WedevEntityPicker.init('{{ selector|default('.entity-picker') }}');
+            }
+        });
+    </script>
+{% endmacro %}
+

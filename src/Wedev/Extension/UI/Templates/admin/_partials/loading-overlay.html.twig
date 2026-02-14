@@ -1,0 +1,45 @@
+{#
+ # =============================================================================
+ # WEDEV UI - Loading Overlay
+ # =============================================================================
+ # Utilisation: Inclure dans un conteneur avec position: relative
+ #
+ # <div style="position: relative;">
+ #     {% include '@WedevUI/admin/_partials/loading-overlay.html.twig' %}
+ #     <!-- Content -->
+ # </div>
+ #
+ # Contrôle via Alpine:
+ # <div x-data="{ loading: false }" style="position: relative;">
+ #     {% include '@WedevUI/admin/_partials/loading-overlay.html.twig' with { show: 'loading' } %}
+ #     <button @click="loading = true">Load</button>
+ # </div>
+ # =============================================================================
+ #}
+
+{% set showCondition = show|default('false') %}
+
+<div x-show="{{ showCondition }}"
+     x-cloak
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     class="position-absolute d-flex align-items-center justify-content-center"
+     style="top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.8); z-index: 10;">
+
+    <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+        {% if message|default(false) %}
+            <p class="mt-2 mb-0 text-muted">{{ message }}</p>
+        {% endif %}
+    </div>
+</div>
+
+
+
+

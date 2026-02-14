@@ -1,0 +1,172 @@
+---
+description: Extension Audit WEDEV - Journal d'audit et traçabilité
+globs: ["**/Extension/Audit/**/*.php"]
+alwaysApply: false
+---
+
+# Extension Audit WEDEV
+
+## 🎯 Objectif
+
+Journal d'audit pour traçabilité des actions et conformité RGPD.
+
+## 📦 Composants
+
+| Composant | Rôle |
+|-----------|------|
+| `AuditLogger` | Service principal de logging |
+| `AuditEntry` | Représentation d'une entrée d'audit |
+| `AuditRepository` | Persistance en base de données |
+| `AuditableTrait` | Trait pour ajouter l'audit aux services |
+
+## ✅ Bonnes Pratiques
+
+### Utilisation du Trait
+
+```php
+// ✅ BON: Utiliser le trait pour simplifier
+class ProductService
+{
+    use AuditableTrait;
+
+    public function update(int $id, array $data): void
+    {
+        $product = new Product($id);
+        $oldData = $this->extractData($product);
+
+        $product->name = $data['name'];
+        $product->save();
+
+        $this->auditUpdate('Product', $id, $oldData, $this->extractData($product));
+    }
+}
+```
+
+### Données à Logger
+
+```php
+// ✅ BON: Données essentielles seulement
+$this->auditUpdate('Product', $id, [
+    'name' => $old->name,
+    'price' => $old->price,
+    'active' => $old->active,
+], [
+    'name' => $new->name,
+    'price' => $new->price,
+    'active' => $new->active,
+]);
+
+// ❌ MAUVAIS: Données sensibles en clair
+$this->auditUpdate('Customer', $id, [
+    'password' => $old->password,  // JAMAIS!
+    'credit_card' => $old->cc,     // JAMAIS!
+], [...]);
+
+// ✅ BON: Masquer les données sensibles
+$this->auditUpdate('Customer', $id, [
+    'email' => '***@' . explode('@', $old->email)[1],
+    'password_changed' => true,  // Juste indiquer le changement
+], [...]);
+```
+
+### Contexte Enrichi
+
+```php
+// ✅ BON: Ajouter du contexte pertinent
+$this->auditExport('Order', [
+    'count' => count($orders),
+    'format' => 'csv',
+    'filters' => [
+        'date_from' => $filters['from'],
+        'status' => $filters['status'],
+    ],
+    'file_size' => filesize($exportPath),
+]);
+```
+
+## 🔒 Conformité RGPD
+
+```php
+// ✅ BON: Logger les consultations de données personnelles
+public function viewCustomerData(int $customerId): array
+{
+    $data = $this->repository->findById($customerId);
+
+    $this->auditView('Customer', $customerId, [
+        'fields_accessed' => ['email', 'address', 'phone'],
+        'reason' => 'support_ticket_123',
+    ]);
+
+    return $data;
+}
+
+// ✅ BON: Logger les exports RGPD
+public function exportCustomerData(int $customerId): string
+{
+    $data = $this->collectAllData($customerId);
+
+    $this->auditExport('CustomerGDPRData', [
+        'customer_id' => $customerId,
+        'reason' => 'gdpr_data_request',
+    ]);
+
+    return json_encode($data);
+}
+
+// ✅ BON: Logger les suppressions (droit à l'oubli)
+public function deleteCustomerData(int $customerId): void
+{
+    $customer = new Customer($customerId);
+    $data = ['email' => $customer->email, 'name' => $customer->name];
+
+    $customer->delete();
+
+    $this->auditDelete('Customer', $customerId, $data, [
+        'reason' => 'gdpr_right_to_be_forgotten',
+        'requested_by' => 'customer',
+    ]);
+}
+```
+
+## 🚫 Anti-patterns
+
+```php
+// ❌ Logger trop de détails
+$this->auditView('Product', $id);  // À chaque vue de page produit = trop!
+
+// ❌ Logger sans valeur ajoutée
+$this->log('custom', 'System', null, [], [], ['debug' => true]);
+
+// ❌ Oublier de logger les suppressions
+$product->delete();  // Sans audit!
+```
+
+## 📝 Recherche et Affichage
+
+```php
+// Historique d'une entité
+$history = $logger->getEntityHistory('Product', 123);
+
+// Recherche avancée
+$entries = $logger->search([
+    'action' => 'update',
+    'entity_type' => 'Product',
+    'date_from' => '2024-01-01',
+], limit: 100);
+
+// Affichage des changements
+foreach ($entry->getChanges() as $field => $change) {
+    echo "$field: {$change['old']} → {$change['new']}";
+}
+```
+
+## 🧹 Maintenance
+
+```php
+// Nettoyage automatique (CRON hebdomadaire)
+$deleted = $logger->cleanup(daysToKeep: 365);
+
+// Rétention configurable
+$retention = Configuration::get('MYMODULE_AUDIT_RETENTION', 365);
+$logger->cleanup($retention);
+```

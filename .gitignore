@@ -1,0 +1,50 @@
+# Module Starter - Git Ignore
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build artifacts
+# Note: JS/CSS/images are in views/js/, views/css/, views/img/ (PrestaShop Addons compliance)
+# Keep dist/ in gitignore in case of accidental builds
+/views/dist/
+/views/build/
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & Cache
+/var/
+*.log
+
+# Testing
+/.phpunit.result.cache
+/phpunit.xml.bak
+/coverage/
+
+# Tools cache
+/.php-cs-fixer.cache
+/phpstan.neon.bak
+
+# Environment
+.env.local
+.env.*.local
+
+# Compiled assets (keep these for production deployments)
+# Uncomment if you want to track built assets
+# !/views/dist/
+
+# Package lock (optional - uncomment to track)
+# !package-lock.json
+# !composer.lock
+
+/var/cache/
+**/cache/*

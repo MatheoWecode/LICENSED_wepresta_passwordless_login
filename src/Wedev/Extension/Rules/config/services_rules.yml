@@ -1,0 +1,21 @@
+# Extension Rules - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Extension/Rules/config/services_rules.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Moteur de règles
+    Wepresta_Passwordless_Login\Wedev\Extension\Rules\RuleEngine:
+        public: true
+
+    # Alias court
+    wedev.rule_engine:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Rules\RuleEngine
+        public: true
+

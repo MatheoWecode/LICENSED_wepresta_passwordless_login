@@ -1,0 +1,613 @@
+---
+description: Base de données - Entities, Repositories, SQL
+globs: ["src/Domain/Entity/**/*.php", "src/Infrastructure/Repository/**/*.php", "sql/**/*.sql"]
+alwaysApply: false
+---
+
+# Base de Données
+
+## 📊 Scripts SQL
+
+### Installation
+
+```sql
+-- sql/install.sql
+
+-- Utiliser PREFIX_ et ENGINE_TYPE (remplacés dynamiquement)
+CREATE TABLE IF NOT EXISTS `PREFIX_modulestarter_item` (
+    `id_modulestarter_item` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `id_shop` INT(11) UNSIGNED NOT NULL DEFAULT '1',
+    `id_lang` INT(11) UNSIGNED NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `description` TEXT,
+    `link` VARCHAR(512) DEFAULT NULL,
+    `image` VARCHAR(255) DEFAULT NULL,
+    `position` INT(11) UNSIGNED NOT NULL DEFAULT '0',
+    `active` TINYINT(1) UNSIGNED NOT NULL DEFAULT '1',
+    `date_add` DATETIME NOT NULL,
+    `date_upd` DATETIME NOT NULL,
+    PRIMARY KEY (`id_modulestarter_item`),
+    KEY `idx_shop` (`id_shop`),
+    KEY `idx_active` (`active`),
+    KEY `idx_position` (`position`)
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table multilangue (séparée)
+CREATE TABLE IF NOT EXISTS `PREFIX_modulestarter_item_lang` (
+    `id_modulestarter_item` INT(11) UNSIGNED NOT NULL,
+    `id_lang` INT(11) UNSIGNED NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `description` TEXT,
+    PRIMARY KEY (`id_modulestarter_item`, `id_lang`),
+    FOREIGN KEY (`id_modulestarter_item`)
+        REFERENCES `PREFIX_modulestarter_item` (`id_modulestarter_item`)
+        ON DELETE CASCADE
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table de liaison (N-N)
+CREATE TABLE IF NOT EXISTS `PREFIX_modulestarter_item_category` (
+    `id_modulestarter_item` INT(11) UNSIGNED NOT NULL,
+    `id_category` INT(11) UNSIGNED NOT NULL,
+    PRIMARY KEY (`id_modulestarter_item`, `id_category`),
+    FOREIGN KEY (`id_modulestarter_item`)
+        REFERENCES `PREFIX_modulestarter_item` (`id_modulestarter_item`)
+        ON DELETE CASCADE
+) ENGINE=ENGINE_TYPE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Index additionnels pour les performances
+CREATE INDEX `idx_item_shop_active` ON `PREFIX_modulestarter_item` (`id_shop`, `active`);
+```
+
+### Désinstallation
+
+```sql
+-- sql/uninstall.sql
+
+-- Supprimer dans l'ordre inverse des dépendances
+DROP TABLE IF EXISTS `PREFIX_modulestarter_item_category`;
+DROP TABLE IF EXISTS `PREFIX_modulestarter_item_lang`;
+DROP TABLE IF EXISTS `PREFIX_modulestarter_item`;
+```
+
+### Exécution des scripts
+
+```php
+// src/Application/Installer/ModuleInstaller.php
+
+private function installDatabase(): bool
+{
+    $sqlFile = _PS_MODULE_DIR_ . $this->module->name . '/sql/install.sql';
+
+    if (!file_exists($sqlFile)) {
+        return true;
+    }
+
+    $sql = file_get_contents($sqlFile);
+    if ($sql === false) {
+        return false;
+    }
+
+    // Remplacer les placeholders
+    $sql = str_replace(
+        ['PREFIX_', 'ENGINE_TYPE'],
+        [_DB_PREFIX_, _MYSQL_ENGINE_],
+        $sql
+    );
+
+    // Séparer les requêtes (attention aux ; dans les strings)
+    $queries = preg_split('/;\s*[\r\n]+/', $sql);
+
+    foreach ($queries as $query) {
+        $query = trim($query);
+        if (!empty($query)) {
+            if (!Db::getInstance()->execute($query)) {
+                // Log l'erreur mais continue (pour les IF NOT EXISTS)
+                $this->module->log('SQL error: ' . Db::getInstance()->getMsgError(), 3);
+            }
+        }
+    }
+
+    return true;
+}
+```
+
+## 🏛️ Entities Doctrine
+
+### Entity de base
+
+```php
+<?php
+// src/Domain/Entity/ModuleStarterItem.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\Entity;
+
+use DateTimeImmutable;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * Entité Item avec mapping Doctrine.
+ *
+ * @ORM\Table(
+ *     name="ps_modulestarter_item",
+ *     indexes={
+ *         @ORM\Index(name="idx_shop", columns={"id_shop"}),
+ *         @ORM\Index(name="idx_active", columns={"active"})
+ *     }
+ * )
+ * @ORM\Entity(repositoryClass="ModuleStarter\Infrastructure\Repository\ModuleStarterItemRepository")
+ * @ORM\HasLifecycleCallbacks()
+ */
+class ModuleStarterItem
+{
+    /**
+     * @ORM\Id
+     * @ORM\Column(name="id_modulestarter_item", type="integer", options={"unsigned"=true})
+     * @ORM\GeneratedValue(strategy="AUTO")
+     */
+    private ?int $id = null;
+
+    /**
+     * @ORM\Column(name="id_shop", type="integer", options={"unsigned"=true, "default"=1})
+     */
+    private int $shopId = 1;
+
+    /**
+     * @ORM\Column(name="name", type="string", length=255)
+     */
+    private string $name;
+
+    /**
+     * @ORM\Column(name="description", type="text", nullable=true)
+     */
+    private ?string $description = null;
+
+    /**
+     * @ORM\Column(name="link", type="string", length=512, nullable=true)
+     */
+    private ?string $link = null;
+
+    /**
+     * @ORM\Column(name="image", type="string", length=255, nullable=true)
+     */
+    private ?string $image = null;
+
+    /**
+     * @ORM\Column(name="position", type="integer", options={"unsigned"=true, "default"=0})
+     */
+    private int $position = 0;
+
+    /**
+     * @ORM\Column(name="active", type="boolean", options={"default"=true})
+     */
+    private bool $active = true;
+
+    /**
+     * @ORM\Column(name="date_add", type="datetime_immutable")
+     */
+    private DateTimeImmutable $createdAt;
+
+    /**
+     * @ORM\Column(name="date_upd", type="datetime_immutable")
+     */
+    private DateTimeImmutable $updatedAt;
+
+    // =========================================================================
+    // LIFECYCLE CALLBACKS
+    // =========================================================================
+
+    /**
+     * @ORM\PrePersist
+     */
+    public function onPrePersist(): void
+    {
+        $this->createdAt = new DateTimeImmutable();
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    /**
+     * @ORM\PreUpdate
+     */
+    public function onPreUpdate(): void
+    {
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    // =========================================================================
+    // DOMAIN LOGIC
+    // =========================================================================
+
+    public function activate(): void
+    {
+        $this->active = true;
+    }
+
+    public function deactivate(): void
+    {
+        $this->active = false;
+    }
+
+    public function moveToPosition(int $position): void
+    {
+        if ($position < 0) {
+            throw new \InvalidArgumentException('Position cannot be negative.');
+        }
+        $this->position = $position;
+    }
+
+    // =========================================================================
+    // GETTERS / SETTERS
+    // =========================================================================
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getShopId(): int
+    {
+        return $this->shopId;
+    }
+
+    public function setShopId(int $shopId): self
+    {
+        $this->shopId = $shopId;
+        return $this;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): self
+    {
+        $this->name = $name;
+        return $this;
+    }
+
+    // ... autres getters/setters
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'shop_id' => $this->shopId,
+            'name' => $this->name,
+            'description' => $this->description,
+            'link' => $this->link,
+            'image' => $this->image,
+            'position' => $this->position,
+            'active' => $this->active,
+            'created_at' => $this->createdAt->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updatedAt->format('Y-m-d H:i:s'),
+        ];
+    }
+}
+```
+
+### Entité multilangue
+
+```php
+<?php
+// src/Domain/Entity/ModuleStarterItemLang.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\Entity;
+
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * Traductions de l'entité Item.
+ *
+ * @ORM\Table(name="ps_modulestarter_item_lang")
+ * @ORM\Entity
+ */
+class ModuleStarterItemLang
+{
+    /**
+     * @ORM\Id
+     * @ORM\ManyToOne(targetEntity="ModuleStarterItem", inversedBy="translations")
+     * @ORM\JoinColumn(name="id_modulestarter_item", referencedColumnName="id_modulestarter_item", onDelete="CASCADE")
+     */
+    private ModuleStarterItem $item;
+
+    /**
+     * @ORM\Id
+     * @ORM\Column(name="id_lang", type="integer", options={"unsigned"=true})
+     */
+    private int $langId;
+
+    /**
+     * @ORM\Column(name="name", type="string", length=255)
+     */
+    private string $name;
+
+    /**
+     * @ORM\Column(name="description", type="text", nullable=true)
+     */
+    private ?string $description = null;
+
+    public function __construct(ModuleStarterItem $item, int $langId)
+    {
+        $this->item = $item;
+        $this->langId = $langId;
+    }
+
+    // Getters/Setters...
+}
+```
+
+## 📦 Repositories
+
+### Interface (Domain Layer)
+
+```php
+<?php
+// src/Domain/Repository/ModuleStarterItemRepositoryInterface.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Domain\Repository;
+
+use ModuleStarter\Domain\Entity\ModuleStarterItem;
+
+interface ModuleStarterItemRepositoryInterface
+{
+    public function find(int $id): ?ModuleStarterItem;
+
+    public function findAll(): array;
+
+    public function findActive(): array;
+
+    public function findByShop(int $shopId): array;
+
+    public function save(ModuleStarterItem $item): void;
+
+    public function delete(ModuleStarterItem $item): void;
+
+    public function getMaxPosition(): int;
+}
+```
+
+### Implémentation Doctrine
+
+```php
+<?php
+// src/Infrastructure/Repository/ModuleStarterItemRepository.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Infrastructure\Repository;
+
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
+use ModuleStarter\Domain\Entity\ModuleStarterItem;
+use ModuleStarter\Domain\Repository\ModuleStarterItemRepositoryInterface;
+
+class ModuleStarterItemRepository extends EntityRepository implements ModuleStarterItemRepositoryInterface
+{
+    private EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em)
+    {
+        $this->em = $em;
+        parent::__construct($em, $em->getClassMetadata(ModuleStarterItem::class));
+    }
+
+    public function find(int $id): ?ModuleStarterItem
+    {
+        return parent::find($id);
+    }
+
+    public function findAll(): array
+    {
+        return $this->createQueryBuilder('i')
+            ->orderBy('i.position', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function findActive(): array
+    {
+        return $this->createQueryBuilder('i')
+            ->where('i.active = :active')
+            ->setParameter('active', true)
+            ->orderBy('i.position', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function findByShop(int $shopId): array
+    {
+        return $this->createQueryBuilder('i')
+            ->where('i.shopId = :shopId')
+            ->setParameter('shopId', $shopId)
+            ->orderBy('i.position', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function save(ModuleStarterItem $item): void
+    {
+        $this->em->persist($item);
+        $this->em->flush();
+    }
+
+    public function delete(ModuleStarterItem $item): void
+    {
+        $this->em->remove($item);
+        $this->em->flush();
+    }
+
+    public function getMaxPosition(): int
+    {
+        $result = $this->createQueryBuilder('i')
+            ->select('MAX(i.position)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return (int) ($result ?? 0);
+    }
+}
+```
+
+### Implémentation Legacy (PrestaShop Db)
+
+```php
+<?php
+// src/Infrastructure/Repository/LegacyItemRepository.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Infrastructure\Repository;
+
+use Db;
+use DbQuery;
+use ModuleStarter\Domain\Entity\ModuleStarterItem;
+use ModuleStarter\Domain\Repository\ModuleStarterItemRepositoryInterface;
+
+/**
+ * Repository utilisant l'API DB legacy de PrestaShop.
+ *
+ * Utiliser cette implémentation si Doctrine n'est pas configuré.
+ */
+class LegacyItemRepository implements ModuleStarterItemRepositoryInterface
+{
+    private const TABLE = 'modulestarter_item';
+
+    private Db $db;
+    private string $prefix;
+
+    public function __construct(Db $db, string $prefix)
+    {
+        $this->db = $db;
+        $this->prefix = $prefix;
+    }
+
+    public function find(int $id): ?ModuleStarterItem
+    {
+        $query = new DbQuery();
+        $query->select('*')
+            ->from(self::TABLE)
+            ->where('id_modulestarter_item = ' . $id);
+
+        $row = $this->db->getRow($query);
+
+        return $row ? $this->hydrate($row) : null;
+    }
+
+    public function findActive(): array
+    {
+        $query = new DbQuery();
+        $query->select('*')
+            ->from(self::TABLE)
+            ->where('active = 1')
+            ->orderBy('position ASC');
+
+        $rows = $this->db->executeS($query);
+
+        return array_map([$this, 'hydrate'], $rows ?: []);
+    }
+
+    public function save(ModuleStarterItem $item): void
+    {
+        $data = [
+            'id_shop' => $item->getShopId(),
+            'name' => pSQL($item->getName()),
+            'description' => pSQL($item->getDescription() ?? '', true),
+            'link' => pSQL($item->getLink() ?? ''),
+            'image' => pSQL($item->getImage() ?? ''),
+            'position' => (int) $item->getPosition(),
+            'active' => $item->isActive() ? 1 : 0,
+            'date_upd' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($item->getId() !== null) {
+            $this->db->update(
+                self::TABLE,
+                $data,
+                'id_modulestarter_item = ' . $item->getId()
+            );
+        } else {
+            $data['date_add'] = date('Y-m-d H:i:s');
+            $this->db->insert(self::TABLE, $data);
+        }
+    }
+
+    public function delete(ModuleStarterItem $item): void
+    {
+        if ($item->getId() === null) {
+            return;
+        }
+
+        $this->db->delete(
+            self::TABLE,
+            'id_modulestarter_item = ' . $item->getId()
+        );
+    }
+
+    public function getMaxPosition(): int
+    {
+        $query = new DbQuery();
+        $query->select('MAX(position)')
+            ->from(self::TABLE);
+
+        $result = $this->db->getValue($query);
+
+        return (int) ($result ?? 0);
+    }
+
+    private function hydrate(array $row): ModuleStarterItem
+    {
+        $item = new ModuleStarterItem();
+        // Utiliser reflection ou setters...
+        return $item;
+    }
+}
+```
+
+## 🔒 Sécurité SQL
+
+### Toujours échapper les données
+
+```php
+// ✅ BON: Utiliser pSQL()
+$name = pSQL($userInput);
+$sql = "SELECT * FROM table WHERE name = '{$name}'";
+
+// ✅ BON: pSQL avec true pour le HTML
+$description = pSQL($htmlContent, true);
+
+// ✅ BON: Utiliser les paramètres bindés
+$query = new DbQuery();
+$query->where('id_product = ' . (int) $productId);
+
+// ❌ MAUVAIS: Injection SQL possible!
+$sql = "SELECT * FROM table WHERE name = '$userInput'";
+```
+
+### Validation des IDs
+
+```php
+// Toujours caster les IDs en int
+$id = (int) Tools::getValue('id');
+
+// Vérifier que l'ID est valide
+if ($id <= 0) {
+    throw new InvalidArgumentException('Invalid ID');
+}
+```
+
+## ✅ Bonnes Pratiques
+
+1. **Préfixe de table** - Toujours utiliser `PREFIX_` dans les SQL
+2. **Engine** - Utiliser `ENGINE_TYPE` pour la compatibilité
+3. **UTF8MB4** - Charset moderne supportant les emojis
+4. **Index** - Créer des index sur les colonnes de recherche
+5. **Foreign Keys** - Assurer l'intégrité référentielle
+6. **ON DELETE CASCADE** - Nettoyage automatique
+7. **pSQL()** - Toujours échapper les strings
+8. **Cast int** - Toujours caster les IDs

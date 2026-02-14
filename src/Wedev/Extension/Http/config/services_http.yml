@@ -1,0 +1,38 @@
+# Extension Http - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Extension/Http/config/services_http.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Client HTTP principal
+    Wepresta_Passwordless_Login\Wedev\Extension\Http\HttpClient:
+        public: true
+
+    # Alias court
+    wedev.http_client:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Http\HttpClient
+        public: true
+
+    # Stratégies d'authentification (factory pattern)
+    # Ces services sont créés manuellement avec les credentials appropriés
+    # Exemple d'utilisation dans un service :
+    #
+    # public function __construct(
+    #     private readonly HttpClient $httpClient,
+    #     private readonly ConfigurationAdapter $config
+    # ) {}
+    #
+    # public function callApi(): HttpResponse
+    # {
+    #     $auth = new BearerAuth($this->config->get('API_KEY'));
+    #     return $this->httpClient
+    #         ->withAuth($auth)
+    #         ->get('https://api.example.com/data');
+    # }
+

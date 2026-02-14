@@ -1,0 +1,54 @@
+{
+    "name": "wepresta_passwordless_login",
+    "version": "1.0.0",
+    "description": "PrestaShop Module Starter - Assets modernes",
+    "private": true,
+    "scripts": {
+        "dev": "encore dev",
+        "watch": "encore dev --watch",
+        "build": "encore production --progress",
+        "build:all": "npm run build && npm run vue:build",
+        "watch:all": "concurrently \"npm run watch\" \"npm run vue:watch\"",
+        "vue:dev": "cd views/js/admin && npm run dev",
+        "vue:watch": "cd views/js/admin && npm run dev",
+        "vue:build": "cd views/js/admin && npm run build",
+        "vue:install": "cd views/js/admin && npm install",
+        "postinstall": "npm run vue:install || true",
+        "lint": "eslint _dev/js --ext .js,.ts",
+        "lint:fix": "eslint _dev/js --ext .js,.ts --fix",
+        "stylelint": "stylelint '_dev/scss/**/*.scss'",
+        "stylelint:fix": "stylelint '_dev/scss/**/*.scss' --fix"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.0",
+        "file-loader": "^6.2.0",
+        "@babel/core": "^7.24.0",
+        "@babel/plugin-proposal-class-properties": "^7.18.6",
+        "@babel/preset-env": "^7.24.0",
+        "@symfony/webpack-encore": "^4.6.0",
+        "autoprefixer": "^10.4.18",
+        "core-js": "^3.36.0",
+        "eslint": "^8.57.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-prettier": "^5.1.3",
+        "postcss": "^8.4.35",
+        "postcss-loader": "^8.1.1",
+        "prettier": "^3.2.5",
+        "regenerator-runtime": "^0.14.1",
+        "sass": "^1.71.1",
+        "sass-loader": "^14.1.1",
+        "stylelint": "^16.2.1",
+        "stylelint-config-standard-scss": "^13.0.0",
+        "webpack": "^5.90.3",
+        "webpack-cli": "^5.1.4",
+        "webpack-notifier": "^1.15.0"
+    },
+    "browserslist": [
+        "> 0.5%",
+        "last 2 versions",
+        "Firefox ESR",
+        "not dead",
+        "not IE 11"
+    ]
+}
+

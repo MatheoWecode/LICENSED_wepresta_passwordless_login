@@ -1,0 +1,218 @@
+---
+description: Tests et qualité de code
+globs: ["tests/**/*.php", "phpstan.neon", "phpunit.xml"]
+alwaysApply: false
+---
+
+# Tests et Qualité
+
+## Structure des Tests
+
+```
+tests/
+├── bootstrap.php           # Configuration PHPUnit
+├── Unit/                   # Tests unitaires (pas de DB)
+│   ├── Service/
+│   └── Entity/
+├── Integration/            # Tests avec DB/services
+│   └── Repository/
+├── Core/                   # Tests du Core
+└── Extension/              # Tests des extensions
+    ├── Http/
+    ├── Rules/
+    └── ...
+```
+
+## PHPUnit
+
+### Configuration
+```xml
+<!-- phpunit.xml -->
+<phpunit bootstrap="tests/bootstrap.php">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
+```
+
+### Test Unitaire
+```php
+<?php
+declare(strict_types=1);
+
+namespace MonModule\Tests\Unit\Service;
+
+use PHPUnit\Framework\TestCase;
+use MonModule\Application\Service\PriceCalculatorService;
+
+class PriceCalculatorServiceTest extends TestCase
+{
+    private PriceCalculatorService $service;
+    
+    protected function setUp(): void
+    {
+        $this->service = new PriceCalculatorService();
+    }
+    
+    public function testCalculateTotalWithDiscount(): void
+    {
+        $result = $this->service->calculateTotal(100, 10);
+        
+        $this->assertEquals(90.0, $result);
+    }
+    
+    public function testCalculateTotalWithZeroDiscount(): void
+    {
+        $result = $this->service->calculateTotal(100, 0);
+        
+        $this->assertEquals(100.0, $result);
+    }
+    
+    public function testCalculateTotalThrowsOnNegativePrice(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        
+        $this->service->calculateTotal(-10, 0);
+    }
+}
+```
+
+### Test avec Mock
+```php
+use PHPUnit\Framework\MockObject\MockObject;
+
+class ProductServiceTest extends TestCase
+{
+    private ProductRepositoryInterface&MockObject $repository;
+    private ProductService $service;
+    
+    protected function setUp(): void
+    {
+        $this->repository = $this->createMock(ProductRepositoryInterface::class);
+        $this->service = new ProductService($this->repository);
+    }
+    
+    public function testGetActiveProducts(): void
+    {
+        $this->repository
+            ->expects($this->once())
+            ->method('findActive')
+            ->willReturn([
+                new Product(1, 'Product 1', 10.0),
+                new Product(2, 'Product 2', 20.0),
+            ]);
+        
+        $products = $this->service->getActiveProducts();
+        
+        $this->assertCount(2, $products);
+    }
+}
+```
+
+## PHPStan
+
+### Configuration
+```neon
+# phpstan.neon
+parameters:
+    level: 8
+    paths:
+        - src
+    excludePaths:
+        - src/Core
+        - src/Extension
+    checkGenericClassInNonGenericObjectType: false
+```
+
+### Commandes
+```bash
+# Analyse statique
+vendor/bin/phpstan analyse
+
+# Avec baseline (ignorer erreurs existantes)
+vendor/bin/phpstan analyse --generate-baseline
+```
+
+## PHP CS Fixer
+
+### Configuration
+```php
+// .php-cs-fixer.php
+return (new PhpCsFixer\Config())
+    ->setRules([
+        '@PSR12' => true,
+        'declare_strict_types' => true,
+        'array_syntax' => ['syntax' => 'short'],
+        'no_unused_imports' => true,
+    ])
+    ->setFinder(
+        PhpCsFixer\Finder::create()
+            ->in(__DIR__ . '/src')
+            ->exclude(['Core', 'Extension'])
+    );
+```
+
+### Commandes
+```bash
+# Vérifier
+vendor/bin/php-cs-fixer fix --dry-run
+
+# Corriger
+vendor/bin/php-cs-fixer fix
+```
+
+## Rector (Refactoring)
+
+```php
+// rector.php
+return RectorConfig::configure()
+    ->withPaths([__DIR__ . '/src'])
+    ->withSkip([
+        __DIR__ . '/src/Core',
+        __DIR__ . '/src/Extension',
+    ])
+    ->withPhpSets(php82: true)
+    ->withPreparedSets(deadCode: true, codeQuality: true);
+```
+
+## Commandes Utiles
+
+```bash
+# Tests
+composer test              # Tous les tests
+composer test:unit         # Tests unitaires
+composer test:integration  # Tests intégration
+
+# Qualité
+composer phpstan           # Analyse statique
+composer cs-fix            # Fix code style
+composer rector            # Refactoring auto
+
+# Tout vérifier
+composer check             # phpstan + cs-check + test
+```
+
+## CI/CD (GitHub Actions)
+
+```yaml
+# .github/workflows/tests.yml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - run: composer install
+      - run: composer phpstan
+      - run: composer test
+```

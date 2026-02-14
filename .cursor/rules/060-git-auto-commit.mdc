@@ -1,0 +1,218 @@
+---
+description: Commits automatiques pour modifications importantes du module
+globs: ["**/*"]
+alwaysApply: false
+---
+
+# 🤖 Commits Automatiques
+
+## Règle Générale
+
+**COMMITTEZ AUTOMATIQUEMENT** après chaque modification importante :
+
+### ✅ Toujours committer après :
+
+#### 📄 Fichiers PHP principaux
+```php
+// Après modification de :
+modulestarter.php           // Hook principal
+composer.json               // Dépendances
+config/services.yml         // Services Symfony
+config/routes.yml           // Routes Symfony
+```
+
+#### 🏗️ Architecture & Structure
+```php
+// Nouvelles entités, services, contrôleurs
+src/Domain/Entity/
+src/Application/Service/
+src/Presentation/Controller/
+```
+
+#### 🎨 Frontend
+```scss
+// Après compilation
+_dev/scss/           // Sources SCSS
+views/css/           // CSS compilé
+```
+
+#### 🗄️ Base de données
+```sql
+// Scripts SQL
+sql/install.sql
+sql/uninstall.sql
+```
+
+#### 🧪 Tests
+```php
+// Nouveaux tests
+tests/
+```
+
+### ❌ Ne PAS committer :
+
+- Fichiers temporaires (`*.tmp`, `*.log`)
+- Cache (`var/cache/*`, `var/logs/*`)
+- Assets non compilés pendant le développement
+- Fichiers de configuration locaux (`.env.local`)
+
+## Messages de Commit Standards
+
+### Format recommandé :
+```
+<type>: <description>
+
+[body optionnel]
+
+<footer optionnel>
+```
+
+### Types de commits :
+- `feat:` Nouvelle fonctionnalité
+- `fix:` Correction de bug
+- `docs:` Documentation
+- `style:` Formatage, points-virgules, etc.
+- `refactor:` Refactorisation du code
+- `test:` Tests
+- `chore:` Maintenance
+
+### Exemples :
+```
+feat: ajouter système de cache Redis
+
+fix: corriger validation email dans formulaire contact
+
+refactor: migrer vers Clean Architecture
+
+docs: mettre à jour README installation
+
+test: ajouter tests pour ProductService
+```
+
+## Déclencheurs Automatiques
+
+### Après compilation assets :
+```bash
+npm run build  # → commit "build: compiler assets frontend"
+```
+
+### Après ajout de hook :
+```php
+public function hookDisplayHome() { /*...*/ }  // → commit "feat: ajouter hook displayHome"
+```
+
+### Après création d'entité :
+```php
+class ProductEntity { /*...*/ }  // → commit "feat: créer entité Product"
+```
+
+### Après ajout de service :
+```yaml
+# config/services.yml
+App\Service\ProductService:  # → commit "feat: ajouter service ProductService"
+```
+
+## Configuration Git
+
+### .gitignore recommandé :
+```
+# Dependencies
+/vendor/
+/node_modules/
+
+# Cache
+/var/cache/
+/var/logs/
+
+# Assets sources (commit seulement les compilés)
+/_dev/
+/*.map
+
+# Local config
+.env.local
+config.local.yml
+```
+
+### Hooks Git (optionnel) :
+
+Créer `.git/hooks/pre-commit` :
+```bash
+#!/bin/bash
+# Vérifier PHPStan avant commit
+composer phpstan
+```
+
+## Workflow Recommandé
+
+1. **Développement** : Commits fréquents et descriptifs
+2. **Features** : Branches dédiées (`feature/xxx`)
+3. **Releases** : Merge vers `main` avec tags
+4. **Hotfixes** : Branches `hotfix/xxx`
+
+### Exemple workflow :
+```bash
+# Nouvelle feature
+git checkout -b feature/product-search
+# Développement...
+git commit -m "feat: ajouter recherche produits"
+git push origin feature/product-search
+
+# Merge
+git checkout main
+git merge feature/product-search
+git tag v1.2.0
+git push origin main --tags
+```
+
+---
+
+## 🚀 Commande Push Module entre Environnements
+
+### Description
+
+Utilisez `wedev ps module push` pour pousser un module d'un environnement PrestaShop vers un autre.
+
+### Usage
+
+```bash
+# Push vers PS8 depuis PS9 (défaut)
+wedev ps module push mon_module
+
+# Push vers environnement spécifique
+wedev ps module push mon_module ps-dev8
+
+# Push depuis environnement spécifique
+wedev ps module push mon_module ps-dev8 --from=ps9-prod
+
+# Liste complète des options
+wedev ps module push --help
+```
+
+### Workflow de développement
+
+```
+PS9 Dev → PS8 Test → Production
+    ↓         ↓         ↓
+  Develop  Compatibilité Live
+```
+
+### Avantages
+
+- ✅ **Une commande** pour pousser entre environnements
+- ✅ **Suppression automatique** du module existant
+- ✅ **Copie complète** de tous les fichiers
+- ✅ **Validation** des environnements avant copie
+
+### Après push
+
+```bash
+# Activer le module dans l'environnement destination
+wedev ps module enable mon_module
+
+# Vider le cache si nécessaire
+rm -rf var/cache/*
+```
+
+---
+
+**💡 Conseil** : Activez cette règle (`alwaysApply: true`) pour être rappelé des bonnes pratiques Git !

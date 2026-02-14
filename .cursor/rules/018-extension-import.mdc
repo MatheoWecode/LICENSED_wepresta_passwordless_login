@@ -1,0 +1,139 @@
+---
+description: Extension Import WEDEV - Import/Export de données
+globs: ["**/Extension/Import/**/*.php"]
+alwaysApply: false
+---
+
+# Extension Import WEDEV
+
+## 🎯 Objectif
+
+Framework d'import/export de données avec support CSV, JSON, XML.
+
+## 📦 Composants
+
+| Composant | Rôle |
+|-----------|------|
+| `AbstractImporter` | Classe de base import |
+| `AbstractExporter` | Classe de base export |
+| `ImportResult` | Résultat d'import |
+| `Parser/*` | Parsers (CSV, JSON, XML) |
+
+## ✅ Bonnes Pratiques
+
+### Créer un Importeur
+
+```php
+// ✅ BON: Étendre AbstractImporter
+final class ProductImporter extends AbstractImporter
+{
+    protected function getRequiredColumns(): array
+    {
+        return ['reference', 'name', 'price'];
+    }
+
+    protected function processRow(array $row, int $lineNumber): void
+    {
+        $this->validateRow($row, $lineNumber);
+
+        if ($this->dryRun) {
+            return;  // Ne rien modifier en dry-run
+        }
+
+        // Logique d'import...
+        $this->result->incrementCreated();
+    }
+}
+```
+
+### Gestion des Erreurs
+
+```php
+// ✅ BON: Reporter les erreurs sans interrompre
+protected function processRow(array $row, int $lineNumber): void
+{
+    try {
+        $this->validateRow($row, $lineNumber);
+        // Import...
+    } catch (\Throwable $e) {
+        $this->result->addError($lineNumber, $e->getMessage());
+        $this->result->incrementSkipped();
+    }
+}
+```
+
+### Mode Dry-Run
+
+```php
+// ✅ BON: Toujours supporter le dry-run
+$importer->setDryRun(true);
+$result = $importer->import($file);
+
+// Afficher ce qui SERAIT importé
+echo "Would create: " . $result->getCreated();
+echo "Would update: " . $result->getUpdated();
+```
+
+### Progression
+
+```php
+// ✅ BON: Reporter la progression
+$importer->onProgress(function(int $current, int $total) {
+    $percent = round($current / $total * 100);
+    echo "\r{$percent}%";
+});
+```
+
+### Imports Lourds
+
+```php
+// ✅ BON: Utiliser les jobs pour les gros imports
+$dispatcher->dispatch(new ImportProductsJob($filePath));
+
+// ✅ BON: Limiter la taille des batches
+$importer->setBatchSize(100);
+```
+
+## 🚫 Anti-patterns
+
+```php
+// ❌ Charger tout en mémoire
+$data = json_decode(file_get_contents($hugeFile), true);
+
+// ✅ BON: Utiliser les generators pour l'export
+protected function getData(): iterable
+{
+    foreach ($this->fetchBatch() as $row) {
+        yield $row;  // Pas de chargement total
+    }
+}
+
+// ❌ Ignorer les colonnes requises
+protected function getRequiredColumns(): array
+{
+    return [];  // Aucune validation!
+}
+
+// ❌ Pas de gestion d'erreurs
+$result = $importer->import($file);
+// Continuer sans vérifier...
+```
+
+## 📊 Export avec Téléchargement
+
+```php
+// Controller
+public function exportAction(): Response
+{
+    $exporter = new ProductExporter();
+
+    return new Response(
+        $exporter->exportToString(),
+        200,
+        [
+            'Content-Type' => $exporter->getContentType(),
+            'Content-Disposition' => 'attachment; filename="products.' . $exporter->getFileExtension() . '"',
+        ]
+    );
+}
+```

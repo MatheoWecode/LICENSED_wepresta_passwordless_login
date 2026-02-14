@@ -1,0 +1,105 @@
+{
+    "name": "yourvendor/wepresta_passwordless_login",
+    "description": "Template PRO pour module PrestaShop 8.x/9.x avec architecture moderne",
+    "version": "1.0.0",
+    "type": "prestashop-module",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "WePresta",
+            "email": "votre@email.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "ext-mbstring": "*"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.10",
+        "phpstan/phpstan-deprecation-rules": "^1.1",
+        "phpstan/phpstan-strict-rules": "^1.5",
+        "phpstan/phpstan-symfony": "^1.3",
+        "phpunit/phpunit": "^10.0",
+        "prestashop/php-coding-standards": "^5.0",
+        "friendsofphp/php-cs-fixer": "^3.40",
+        "rector/rector": "^1.0",
+        "mockery/mockery": "^1.6",
+        "fakerphp/faker": "^1.23",
+        "phpstan/extension-installer": "^1.3",
+        "vimeo/psalm": "^6.0",
+        "infection/infection": "^0.29"
+    },
+    "autoload": {
+        "psr-4": {
+            "Wepresta_Passwordless_Login\\": "src/",
+            "Wepresta_Passwordless_Login\\Example\\": "src/_example/"
+        },
+        "classmap": [
+            "wepresta_passwordless_login.php",
+            "controllers/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Wepresta_Passwordless_Login\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "prepend-autoloader": false,
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true,
+            "infection/extension-installer": true
+        }
+    },
+    "scripts": {
+        "copy-assets": "cp src/Wedev/Extension/[name]/Assets/js/*.js views/js/ 2>/dev/null || true",
+        "patch-autoload": "php scripts/patch-autoload.php",
+        "post-install-cmd": [
+            "@copy-assets",
+            "@patch-autoload"
+        ],
+        "post-update-cmd": [
+            "@copy-assets",
+            "@patch-autoload"
+        ],
+        "phpstan": "phpstan analyse --configuration=phpstan.neon --memory-limit=2048M",
+        "phpstan-baseline": "phpstan analyse --configuration=phpstan.neon --generate-baseline=phpstan-baseline.neon",
+        "phpunit": "phpunit --configuration=phpunit.xml",
+        "phpunit-coverage": "XDEBUG_MODE=coverage phpunit --configuration=phpunit.xml --coverage-html=var/coverage",
+        "cs-check": "php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.php",
+        "cs-fix": "php-cs-fixer fix --config=.php-cs-fixer.php",
+        "rector": "rector process --config=rector.php",
+        "rector-dry": "rector process --config=rector.php --dry-run",
+        "psalm": "psalm --config=psalm.xml",
+        "infection": "infection --configuration=infection.json --threads=4",
+        "test": [
+            "@cs-check",
+            "@phpstan",
+            "@phpunit"
+        ],
+        "fix": [
+            "@cs-fix",
+            "@rector"
+        ],
+        "qa": [
+            "@test",
+            "@psalm"
+        ]
+    },
+    "scripts-descriptions": {
+        "copy-assets": "Copie les assets JS des extensions vers views/js/",
+        "patch-autoload": "Patch vendor/autoload.php pour compatibilité PrestaShop (évite conflits Symfony)",
+        "phpstan": "Analyse statique avec PHPStan",
+        "phpunit": "Lance les tests unitaires",
+        "cs-check": "Vérifie le style de code",
+        "cs-fix": "Corrige le style de code",
+        "rector": "Refactoring automatique",
+        "test": "Lance tous les tests",
+        "fix": "Corrige code style + rector",
+        "qa": "Quality Assurance complète"
+    }
+}

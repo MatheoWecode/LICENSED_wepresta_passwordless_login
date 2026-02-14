@@ -1,0 +1,29 @@
+# Extension Notifications - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Extension/Notifications/config/services_notifications.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Service de notification
+    Wepresta_Passwordless_Login\Wedev\Extension\Notifications\NotificationService:
+        public: true
+
+    # Canal Email
+    Wepresta_Passwordless_Login\Wedev\Extension\Notifications\Channel\EmailChannel:
+        public: true
+
+    # Alias courts
+    wedev.notification_service:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Notifications\NotificationService
+        public: true
+
+    wedev.notification_email:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Notifications\Channel\EmailChannel
+        public: true
+

@@ -1,0 +1,61 @@
+# Grid Framework PrestaShop
+
+Ce dossier contient les classes Grid pour le back-office.
+
+## Créer un Grid
+
+1. **GridDefinitionFactory** - Définit colonnes, filtres, actions
+2. **GridQueryBuilder** - Requêtes SQL pour les données
+
+## Exemple
+
+```php
+// MyEntityGridDefinitionFactory.php
+final class MyEntityGridDefinitionFactory extends AbstractGridDefinitionFactory
+{
+    public const GRID_ID = 'my_entity';
+    
+    protected function getId(): string { return self::GRID_ID; }
+    protected function getName(): string { return 'My Entities'; }
+    
+    protected function getColumns(): ColumnCollection { /* ... */ }
+    protected function getFilters(): FilterCollection { /* ... */ }
+}
+```
+
+## Configuration services.yml
+
+```yaml
+# Grid Definition (hérite du parent abstrait)
+MyModule\Presentation\Grid\MyEntityGridDefinitionFactory:
+    parent: 'prestashop.core.grid.definition.factory.abstract_grid_definition'
+    public: true
+
+# Query Builder (paramètres explicites - pas d'autowiring)
+MyModule\Presentation\Grid\MyEntityGridQueryBuilder:
+    arguments:
+        $connection: '@doctrine.dbal.default_connection'
+        $dbPrefix: '%database_prefix%'
+
+# Data Provider
+mymodule.grid.data_provider:
+    class: 'PrestaShop\PrestaShop\Core\Grid\Data\Factory\DoctrineGridDataFactory'
+    arguments:
+        $gridQueryBuilder: '@MyModule\Presentation\Grid\MyEntityGridQueryBuilder'
+        $hookDispatcher: '@prestashop.core.hook.dispatcher'
+        $queryParser: '@prestashop.core.grid.query.doctrine_query_parser'
+        $gridId: 'my_entity'
+
+# Grid Factory
+mymodule.grid.factory:
+    class: 'PrestaShop\PrestaShop\Core\Grid\GridFactory'
+    arguments:
+        $definitionFactory: '@MyModule\Presentation\Grid\MyEntityGridDefinitionFactory'
+        $dataFactory: '@mymodule.grid.data_provider'
+        $filterFormFactory: '@prestashop.core.grid.filter.form_factory'
+        $hookDispatcher: '@prestashop.core.hook.dispatcher'
+```
+
+⚠️ **Important**: Les classes Grid ne doivent PAS être dans l'auto-registration
+car elles ont des paramètres non-autowirables ($dbPrefix).
+

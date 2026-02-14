@@ -1,0 +1,418 @@
+---
+description: Services Symfony et injection de dépendances
+globs: ["config/services.yml", "src/**/*.php"]
+alwaysApply: false
+---
+
+# Services et Injection de Dépendances
+
+## 📦 Configuration des Services
+
+### Structure du fichier services.yml
+
+```yaml
+# config/services.yml
+
+services:
+    # =========================================================================
+    # DEFAULTS - Appliqués à tous les services sauf override
+    # =========================================================================
+    _defaults:
+        autowire: true           # Injection automatique des dépendances
+        autoconfigure: true      # Tags automatiques (EventSubscriber, etc.)
+        public: false            # Services privés par défaut (best practice)
+        bind:                    # Variables globales injectables
+            $modulePath: '%kernel.project_dir%/modules/modulestarter'
+            $debug: '%kernel.debug%'
+
+    # =========================================================================
+    # AUTO-REGISTRATION - Enregistre automatiquement les classes
+    # =========================================================================
+    #
+    # ⚠️ ATTENTION: Ne PAS auto-enregistrer src/Presentation/Grid/
+    #    Les classes Grid ont des paramètres non-autowirables ($dbPrefix)
+    #    et doivent être configurées EXPLICITEMENT ci-dessous.
+    #
+
+    # Application layer
+    ModuleStarter\Application\:
+        resource: '../src/Application/*'
+        exclude:
+            - '../src/Application/Form/'  # Forms configurés séparément
+
+    # Infrastructure layer
+    ModuleStarter\Infrastructure\:
+        resource: '../src/Infrastructure/*'
+        exclude:
+            - '../src/Infrastructure/Api/'  # API controllers configurés séparément
+
+    # Domain layer - Exclure car ce ne sont pas des services
+    # ModuleStarter\Domain\:  # NE PAS FAIRE - entities, value objects ne sont pas des services
+
+    # Presentation layer - UNIQUEMENT les Controllers (pas les Grids!)
+    ModuleStarter\Presentation\Controller\:
+        resource: '../src/Presentation/Controller/*'
+        tags: ['controller.service_arguments']
+
+    # =========================================================================
+    # INFRASTRUCTURE LAYER - Implémentations concrètes
+    # =========================================================================
+
+    # Configuration Adapter
+    ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter:
+        public: true  # Utilisé dans le module principal
+
+    # Repository avec dépendances PrestaShop
+    ModuleStarter\Infrastructure\Repository\ModuleStarterRepository:
+        arguments:
+            $db: '@=service("prestashop.adapter.legacy.context").getContext().database'
+        public: true
+
+    # Alias: Interface -> Implémentation
+    # Permet d'injecter l'interface, pas l'implémentation
+    ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface:
+        alias: ModuleStarter\Infrastructure\Repository\ModuleStarterRepository
+
+    # =========================================================================
+    # APPLICATION LAYER - Services métier
+    # =========================================================================
+
+    ModuleStarter\Application\Service\ModuleStarterService:
+        arguments:
+            $repository: '@ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface'
+            $config: '@ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter'
+            $logger: '@?logger'  # ? = optionnel, null si non disponible
+        public: true
+
+    # Alias court pour faciliter l'accès
+    modulestarter.service:
+        alias: ModuleStarter\Application\Service\ModuleStarterService
+        public: true
+
+    # =========================================================================
+    # EVENT SUBSCRIBERS - Écouteurs d'événements
+    # =========================================================================
+
+    ModuleStarter\Infrastructure\EventSubscriber\ProductEventSubscriber:
+        arguments:
+            $config: '@ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter'
+        tags:
+            - { name: kernel.event_subscriber }
+
+    ModuleStarter\Infrastructure\EventSubscriber\OrderEventSubscriber:
+        tags:
+            - { name: kernel.event_subscriber }
+
+    # =========================================================================
+    # GRID FRAMEWORK - Grilles admin
+    # =========================================================================
+    #
+    # ⚠️ IMPORTANT: Les classes Grid DOIVENT être configurées EXPLICITEMENT
+    #    Ne JAMAIS les inclure dans l'auto-registration car:
+    #    - GridQueryBuilder a un paramètre $dbPrefix (string) non-autowirable
+    #    - GridDefinitionFactory nécessite un parent spécifique
+    #
+    # Pour chaque entité avec un Grid, créer ces 4 services:
+    #
+
+    # 1. Définition de la grille (hérite du parent abstrait)
+    # ModuleStarter\Presentation\Grid\MyEntityGridDefinitionFactory:
+    #     parent: 'prestashop.core.grid.definition.factory.abstract_grid_definition'
+    #     public: true
+
+    # 2. Query builder (paramètres EXPLICITES - pas d'autowiring!)
+    # ModuleStarter\Presentation\Grid\MyEntityGridQueryBuilder:
+    #     arguments:
+    #         $connection: '@doctrine.dbal.default_connection'
+    #         $dbPrefix: '%database_prefix%'
+
+    # 3. Data provider
+    # modulestarter.myentity.grid.data_provider:
+    #     class: 'PrestaShop\PrestaShop\Core\Grid\Data\Factory\DoctrineGridDataFactory'
+    #     arguments:
+    #         $gridQueryBuilder: '@ModuleStarter\Presentation\Grid\MyEntityGridQueryBuilder'
+    #         $hookDispatcher: '@prestashop.core.hook.dispatcher'
+    #         $queryParser: '@prestashop.core.grid.query.doctrine_query_parser'
+    #         $gridId: 'my_entity'
+
+    # 4. Factory de la grille
+    # modulestarter.myentity.grid.factory:
+    #     class: 'PrestaShop\PrestaShop\Core\Grid\GridFactory'
+    #     arguments:
+    #         $definitionFactory: '@ModuleStarter\Presentation\Grid\MyEntityGridDefinitionFactory'
+    #         $dataFactory: '@modulestarter.myentity.grid.data_provider'
+    #         $filterFormFactory: '@prestashop.core.grid.filter.form_factory'
+    #         $hookDispatcher: '@prestashop.core.hook.dispatcher'
+
+    # =========================================================================
+    # FORMS - Types de formulaires
+    # =========================================================================
+
+    ModuleStarter\Application\Form\ConfigurationType:
+        parent: 'form.type.translatable.aware'
+        public: true
+        tags:
+            - { name: form.type }
+
+    # =========================================================================
+    # API - Contrôleurs REST
+    # =========================================================================
+
+    ModuleStarter\Infrastructure\Api\ApiController:
+        arguments:
+            $service: '@ModuleStarter\Application\Service\ModuleStarterService'
+            $config: '@ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter'
+        tags:
+            - { name: controller.service_arguments }
+        public: true
+```
+
+## 🔌 Utilisation des Services
+
+### Dans le module principal
+
+```php
+// modulestarter.php
+
+class ModuleStarter extends Module
+{
+    /**
+     * Récupère un service du conteneur Symfony.
+     *
+     * @template T of object
+     * @param class-string<T> $serviceId
+     * @return T|null
+     */
+    public function getService(string $serviceId): ?object
+    {
+        try {
+            $container = $this->getContainer();
+
+            if ($container === null) {
+                return null;
+            }
+
+            if (!$container->has($serviceId)) {
+                return null;
+            }
+
+            return $container->get($serviceId);
+        } catch (\Exception $e) {
+            $this->log('Service not found: ' . $serviceId, 2);
+            return null;
+        }
+    }
+
+    // Utilisation dans un hook
+    public function hookDisplayHome(array $params): string
+    {
+        $service = $this->getService(ModuleStarterService::class);
+
+        if ($service === null) {
+            return '';
+        }
+
+        $items = $service->getActiveItems();
+        // ...
+    }
+}
+```
+
+### Dans un contrôleur Symfony
+
+```php
+// src/Presentation/Controller/Admin/ConfigurationController.php
+
+use ModuleStarter\Application\Service\ModuleStarterService;
+use Symfony\Component\HttpFoundation\Response;
+
+class ConfigurationController extends FrameworkBundleAdminController
+{
+    // Injection via constructeur (recommandé)
+    public function __construct(
+        private readonly ModuleStarterService $service
+    ) {
+    }
+
+    public function indexAction(): Response
+    {
+        $items = $this->service->getActiveItems();
+        // ...
+    }
+
+    // OU injection via paramètre de méthode
+    public function createAction(
+        Request $request,
+        ModuleStarterService $service  // Injecté automatiquement
+    ): Response {
+        // ...
+    }
+}
+```
+
+### Dans un Event Subscriber
+
+```php
+// src/Infrastructure/EventSubscriber/ProductEventSubscriber.php
+
+use ModuleStarter\Infrastructure\Adapter\ConfigurationAdapter;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+
+final class ProductEventSubscriber implements EventSubscriberInterface
+{
+    public function __construct(
+        private readonly ConfigurationAdapter $config
+    ) {
+    }
+
+    public static function getSubscribedEvents(): array
+    {
+        return [
+            'PrestaShop\PrestaShop\Core\Domain\Product\Command\AddProductCommand' => 'onProductAdd',
+        ];
+    }
+
+    public function onProductAdd(object $event): void
+    {
+        if (!$this->config->getBool('MODULESTARTER_ACTIVE')) {
+            return;
+        }
+        // ...
+    }
+}
+```
+
+## 🏷️ Tags de Services
+
+### Tags courants
+
+```yaml
+services:
+    # Contrôleur avec injection d'arguments
+    MyController:
+        tags:
+            - { name: controller.service_arguments }
+
+    # Event Subscriber Symfony
+    MyEventSubscriber:
+        tags:
+            - { name: kernel.event_subscriber }
+
+    # Form Type
+    MyFormType:
+        tags:
+            - { name: form.type }
+
+    # Twig Extension
+    MyTwigExtension:
+        tags:
+            - { name: twig.extension }
+
+    # Console Command
+    MyCommand:
+        tags:
+            - { name: console.command }
+```
+
+## 🔗 Services PrestaShop Utiles
+
+```yaml
+# Services PrestaShop disponibles pour injection
+
+services:
+    MyService:
+        arguments:
+            # Base de données
+            $db: '@=service("prestashop.adapter.legacy.context").getContext().database'
+
+            # Contexte (shop, langue, devise)
+            $context: '@prestashop.adapter.legacy.context'
+
+            # Configuration
+            $configuration: '@prestashop.adapter.legacy.configuration'
+
+            # Connexion Doctrine DBAL
+            $connection: '@doctrine.dbal.default_connection'
+
+            # Entity Manager Doctrine
+            $entityManager: '@doctrine.orm.entity_manager'
+
+            # Traducteur
+            $translator: '@translator'
+
+            # Logger
+            $logger: '@logger'
+            # ou optionnel:
+            $logger: '@?logger'
+
+            # Router
+            $router: '@router'
+
+            # Event Dispatcher
+            $eventDispatcher: '@event_dispatcher'
+
+            # Préfixe de table
+            $dbPrefix: '%database_prefix%'
+
+            # Mode debug
+            $debug: '%kernel.debug%'
+
+            # Répertoire projet
+            $projectDir: '%kernel.project_dir%'
+```
+
+## ⚙️ Patterns Avancés
+
+### Factory Service
+
+```yaml
+# Pour créer des instances à la demande
+services:
+    modulestarter.item.factory:
+        class: ModuleStarter\Application\Factory\ItemFactory
+        arguments:
+            $repository: '@ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface'
+```
+
+### Service avec méthode factory
+
+```yaml
+services:
+    # Créer un service via une factory
+    modulestarter.special_service:
+        class: ModuleStarter\Application\Service\SpecialService
+        factory: ['@modulestarter.service_factory', 'create']
+        arguments:
+            - 'special_config'
+```
+
+### Service décoré
+
+```yaml
+services:
+    # Décorer un service existant
+    ModuleStarter\Infrastructure\Decorator\LoggingRepository:
+        decorates: ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface
+        arguments:
+            $inner: '@.inner'
+            $logger: '@logger'
+```
+
+### Lazy Loading
+
+```yaml
+services:
+    # Service chargé uniquement quand utilisé
+    ModuleStarter\Application\Service\HeavyService:
+        lazy: true
+```
+
+## ✅ Bonnes Pratiques
+
+1. **Injecter les interfaces**, pas les implémentations
+2. **Services privés** par défaut (`public: false`)
+3. **Autowiring** pour simplifier la configuration
+4. **Tags autoconfigure** pour les subscribers, forms, etc.
+5. **Services stateless** - pas d'état entre les appels
+6. **Constructeurs courts** - max 5-6 dépendances
+7. **Logger optionnel** - `@?logger` pour éviter les erreurs

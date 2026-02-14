@@ -1,0 +1,555 @@
+---
+description: Formulaires Symfony Form Types et validation
+globs: ["src/Application/Form/**/*.php"]
+alwaysApply: false
+---
+
+# Formulaires Symfony
+
+## 🔧 Form Types de Base
+
+### Configuration du module
+
+```php
+<?php
+// src/Application/Form/ConfigurationType.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Application\Form;
+
+use PrestaShopBundle\Form\Admin\Type\SwitchType;
+use PrestaShopBundle\Form\Admin\Type\TranslatableType;
+use PrestaShopBundle\Form\Admin\Type\TranslatorAwareType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints as Assert;
+
+/**
+ * Formulaire de configuration du module.
+ */
+class ConfigurationType extends TranslatorAwareType
+{
+    public function buildForm(FormBuilderInterface $builder, array $options): void
+    {
+        $builder
+            // Switch ON/OFF
+            ->add('active', SwitchType::class, [
+                'label' => $this->trans('Enable module', 'Modules.Modulestarter.Admin'),
+                'help' => $this->trans('Enable or disable the module features.', 'Modules.Modulestarter.Admin'),
+                'required' => false,
+            ])
+
+            // Texte simple
+            ->add('title', TextType::class, [
+                'label' => $this->trans('Module title', 'Modules.Modulestarter.Admin'),
+                'help' => $this->trans('The title displayed in the front-office.', 'Modules.Modulestarter.Admin'),
+                'constraints' => [
+                    new Assert\NotBlank([
+                        'message' => $this->trans('Title is required.', 'Modules.Modulestarter.Admin'),
+                    ]),
+                    new Assert\Length([
+                        'max' => 255,
+                        'maxMessage' => $this->trans('Title cannot exceed {{ limit }} characters.', 'Modules.Modulestarter.Admin'),
+                    ]),
+                ],
+            ])
+
+            // Texte multilangue
+            ->add('description', TranslatableType::class, [
+                'label' => $this->trans('Description', 'Modules.Modulestarter.Admin'),
+                'type' => TextareaType::class,
+                'options' => [
+                    'attr' => [
+                        'rows' => 5,
+                        'class' => 'textarea-lg',
+                    ],
+                    'constraints' => [
+                        new Assert\Length(['max' => 1000]),
+                    ],
+                ],
+                'required' => false,
+            ])
+
+            // Nombre entier
+            ->add('items_per_page', IntegerType::class, [
+                'label' => $this->trans('Items per page', 'Modules.Modulestarter.Admin'),
+                'constraints' => [
+                    new Assert\Range([
+                        'min' => 1,
+                        'max' => 100,
+                        'notInRangeMessage' => $this->trans('Value must be between {{ min }} and {{ max }}.', 'Modules.Modulestarter.Admin'),
+                    ]),
+                ],
+                'attr' => [
+                    'min' => 1,
+                    'max' => 100,
+                ],
+            ])
+
+            // Liste déroulante
+            ->add('display_mode', ChoiceType::class, [
+                'label' => $this->trans('Display mode', 'Modules.Modulestarter.Admin'),
+                'choices' => [
+                    $this->trans('Grid', 'Modules.Modulestarter.Admin') => 'grid',
+                    $this->trans('List', 'Modules.Modulestarter.Admin') => 'list',
+                    $this->trans('Carousel', 'Modules.Modulestarter.Admin') => 'carousel',
+                ],
+                'expanded' => false,  // false = select, true = radio buttons
+                'multiple' => false,
+            ])
+
+            // Switch mode debug
+            ->add('debug', SwitchType::class, [
+                'label' => $this->trans('Debug mode', 'Modules.Modulestarter.Admin'),
+                'help' => $this->trans('Enable debug logging for troubleshooting.', 'Modules.Modulestarter.Admin'),
+                'required' => false,
+            ]);
+    }
+
+    public function configureOptions(OptionsResolver $resolver): void
+    {
+        $resolver->setDefaults([
+            'translation_domain' => 'Modules.Modulestarter.Admin',
+        ]);
+    }
+}
+```
+
+### Formulaire d'entité
+
+```php
+<?php
+// src/Application/Form/ItemType.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Application\Form;
+
+use PrestaShopBundle\Form\Admin\Type\CategoryChoiceTreeType;
+use PrestaShopBundle\Form\Admin\Type\FormattedTextareaType;
+use PrestaShopBundle\Form\Admin\Type\ImagePreviewType;
+use PrestaShopBundle\Form\Admin\Type\SwitchType;
+use PrestaShopBundle\Form\Admin\Type\TranslatableType;
+use PrestaShopBundle\Form\Admin\Type\TranslatorAwareType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\UrlType;
+use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints as Assert;
+
+/**
+ * Formulaire pour créer/éditer un Item.
+ */
+class ItemType extends TranslatorAwareType
+{
+    public function buildForm(FormBuilderInterface $builder, array $options): void
+    {
+        $isEdition = $options['item_id'] !== null;
+
+        $builder
+            // Nom multilangue
+            ->add('name', TranslatableType::class, [
+                'label' => $this->trans('Name', 'Admin.Global'),
+                'type' => TextType::class,
+                'options' => [
+                    'constraints' => [
+                        new Assert\NotBlank(),
+                        new Assert\Length(['min' => 2, 'max' => 255]),
+                    ],
+                ],
+            ])
+
+            // Description avec éditeur WYSIWYG
+            ->add('description', TranslatableType::class, [
+                'label' => $this->trans('Description', 'Admin.Global'),
+                'type' => FormattedTextareaType::class,
+                'options' => [
+                    'required' => false,
+                    'constraints' => [
+                        new Assert\Length(['max' => 5000]),
+                    ],
+                ],
+                'required' => false,
+            ])
+
+            // URL
+            ->add('link', UrlType::class, [
+                'label' => $this->trans('Link URL', 'Modules.Modulestarter.Admin'),
+                'required' => false,
+                'constraints' => [
+                    new Assert\Url([
+                        'message' => $this->trans('Please enter a valid URL.', 'Admin.Notifications.Error'),
+                    ]),
+                ],
+                'attr' => [
+                    'placeholder' => 'https://',
+                ],
+            ])
+
+            // Image (prévisualisation si édition)
+            ->add('image_preview', ImagePreviewType::class, [
+                'label' => false,
+                'mapped' => false,
+                'image_url' => $isEdition ? ($options['image_url'] ?? null) : null,
+            ])
+
+            // Upload image
+            ->add('image', FileType::class, [
+                'label' => $this->trans('Image', 'Admin.Global'),
+                'required' => !$isEdition,
+                'constraints' => [
+                    new Assert\File([
+                        'maxSize' => '2M',
+                        'mimeTypes' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+                        'mimeTypesMessage' => $this->trans('Please upload a valid image file (JPG, PNG, GIF, WebP).', 'Modules.Modulestarter.Admin'),
+                    ]),
+                ],
+                'attr' => [
+                    'accept' => 'image/*',
+                ],
+            ])
+
+            // Position
+            ->add('position', IntegerType::class, [
+                'label' => $this->trans('Position', 'Admin.Global'),
+                'constraints' => [
+                    new Assert\PositiveOrZero(),
+                ],
+                'attr' => [
+                    'min' => 0,
+                ],
+            ])
+
+            // Catégories associées
+            ->add('categories', CategoryChoiceTreeType::class, [
+                'label' => $this->trans('Associated categories', 'Modules.Modulestarter.Admin'),
+                'multiple' => true,
+                'required' => false,
+            ])
+
+            // Statut actif
+            ->add('active', SwitchType::class, [
+                'label' => $this->trans('Active', 'Admin.Global'),
+                'required' => false,
+            ]);
+    }
+
+    public function configureOptions(OptionsResolver $resolver): void
+    {
+        $resolver->setDefaults([
+            'translation_domain' => 'Modules.Modulestarter.Admin',
+            'item_id' => null,
+            'image_url' => null,
+        ]);
+
+        $resolver->setAllowedTypes('item_id', ['null', 'int']);
+        $resolver->setAllowedTypes('image_url', ['null', 'string']);
+    }
+}
+```
+
+## 🔍 Types de Champs PrestaShop
+
+### Types courants
+
+```php
+use PrestaShopBundle\Form\Admin\Type\...;
+
+// Switch ON/OFF
+->add('active', SwitchType::class, [...])
+
+// Texte multilangue
+->add('name', TranslatableType::class, [
+    'type' => TextType::class,  // Le type interne
+    'options' => [...],         // Options du type interne
+])
+
+// Textarea avec éditeur TinyMCE
+->add('content', FormattedTextareaType::class, [...])
+
+// Sélection de catégories
+->add('categories', CategoryChoiceTreeType::class, [
+    'multiple' => true,
+])
+
+// Sélection de produits
+->add('products', TypeaheadProductCollectionType::class, [
+    'remote_url' => $this->generateUrl('admin_common_products_search', [
+        'query' => '__QUERY__',
+    ]),
+    'limit' => 20,
+])
+
+// Date
+->add('date', DatePickerType::class, [
+    'required' => false,
+])
+
+// Couleur
+->add('color', ColorPickerType::class, [
+    'required' => false,
+])
+
+// Upload d'image avec preview
+->add('image', ImageWithPreviewType::class, [
+    'label' => 'Image',
+])
+
+// Monnaie
+->add('price', MoneyType::class, [
+    'label' => 'Price',
+    'currency' => 'EUR',
+])
+
+// Zone de texte avec compteur
+->add('meta_description', TextareaType::class, [
+    'attr' => [
+        'counter' => 160,
+        'counter_type' => 'recommended',
+    ],
+])
+```
+
+### Types personnalisés
+
+```php
+<?php
+// src/Application/Form/Type/ItemSelectorType.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Application\Form\Type;
+
+use ModuleStarter\Application\Service\ModuleStarterService;
+use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+
+/**
+ * Type personnalisé pour sélectionner un Item.
+ */
+class ItemSelectorType extends AbstractType
+{
+    public function __construct(
+        private readonly ModuleStarterService $service
+    ) {
+    }
+
+    public function configureOptions(OptionsResolver $resolver): void
+    {
+        $items = $this->service->getActiveItems();
+
+        $choices = [];
+        foreach ($items as $item) {
+            $choices[$item->getName()->getValue()] = $item->getId()->getValue();
+        }
+
+        $resolver->setDefaults([
+            'choices' => $choices,
+            'placeholder' => '-- Select an item --',
+            'required' => false,
+        ]);
+    }
+
+    public function getParent(): string
+    {
+        return ChoiceType::class;
+    }
+}
+```
+
+## ✅ Validation
+
+### Contraintes intégrées
+
+```php
+use Symfony\Component\Validator\Constraints as Assert;
+
+// Champ requis
+new Assert\NotBlank(['message' => 'Field is required.'])
+
+// Longueur
+new Assert\Length([
+    'min' => 2,
+    'max' => 255,
+    'minMessage' => 'Minimum {{ limit }} characters.',
+    'maxMessage' => 'Maximum {{ limit }} characters.',
+])
+
+// Nombre dans une plage
+new Assert\Range(['min' => 0, 'max' => 100])
+
+// Email
+new Assert\Email(['message' => 'Invalid email.'])
+
+// URL
+new Assert\Url(['message' => 'Invalid URL.'])
+
+// Regex
+new Assert\Regex([
+    'pattern' => '/^[a-z0-9_]+$/',
+    'message' => 'Only lowercase letters, numbers, and underscores.',
+])
+
+// Fichier
+new Assert\File([
+    'maxSize' => '2M',
+    'mimeTypes' => ['image/jpeg', 'image/png'],
+])
+
+// Collection
+new Assert\Count(['min' => 1, 'max' => 10])
+
+// Callback personnalisé
+new Assert\Callback([self::class, 'validateCustom'])
+```
+
+### Validation personnalisée
+
+```php
+<?php
+// src/Application/Validator/UniqueItemNameValidator.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Application\Validator;
+
+use ModuleStarter\Domain\Repository\ModuleStarterRepositoryInterface;
+use Symfony\Component\Validator\Constraint;
+use Symfony\Component\Validator\ConstraintValidator;
+
+class UniqueItemNameValidator extends ConstraintValidator
+{
+    public function __construct(
+        private readonly ModuleStarterRepositoryInterface $repository
+    ) {
+    }
+
+    public function validate($value, Constraint $constraint): void
+    {
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        // Vérifier l'unicité
+        $existing = $this->repository->findByName($value);
+
+        if ($existing !== null) {
+            $this->context->buildViolation($constraint->message)
+                ->setParameter('{{ name }}', $value)
+                ->addViolation();
+        }
+    }
+}
+
+// Contrainte associée
+// src/Application/Validator/UniqueItemName.php
+
+use Symfony\Component\Validator\Constraint;
+
+#[\Attribute]
+class UniqueItemName extends Constraint
+{
+    public string $message = 'An item with name "{{ name }}" already exists.';
+}
+```
+
+## 🖥️ Templates Twig
+
+### Rendu du formulaire
+
+```twig
+{# views/templates/admin/configuration.html.twig #}
+
+{% extends '@PrestaShop/Admin/layout.html.twig' %}
+
+{% block content %}
+    {{ form_start(configurationForm) }}
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-header-title">
+                {{ 'General Settings'|trans({}, 'Modules.Modulestarter.Admin') }}
+            </h3>
+        </div>
+        <div class="card-body">
+            {{ form_row(configurationForm.active) }}
+            {{ form_row(configurationForm.title) }}
+            {{ form_row(configurationForm.description) }}
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-header">
+            <h3 class="card-header-title">
+                {{ 'Display Settings'|trans({}, 'Modules.Modulestarter.Admin') }}
+            </h3>
+        </div>
+        <div class="card-body">
+            {{ form_row(configurationForm.items_per_page) }}
+            {{ form_row(configurationForm.display_mode) }}
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-header">
+            <h3 class="card-header-title">
+                {{ 'Advanced'|trans({}, 'Admin.Global') }}
+            </h3>
+        </div>
+        <div class="card-body">
+            {{ form_row(configurationForm.debug) }}
+        </div>
+        <div class="card-footer text-right">
+            <button type="submit" class="btn btn-primary">
+                <i class="material-icons">save</i>
+                {{ 'Save'|trans({}, 'Admin.Actions') }}
+            </button>
+        </div>
+    </div>
+
+    {{ form_end(configurationForm) }}
+{% endblock %}
+```
+
+### Rendu personnalisé
+
+```twig
+{# Rendu manuel des champs #}
+<div class="form-group row">
+    <label class="form-control-label col-sm-4">
+        {{ form_label(form.title) }}
+    </label>
+    <div class="col-sm-8">
+        {{ form_widget(form.title, {'attr': {'class': 'form-control'}}) }}
+        {{ form_errors(form.title) }}
+        {{ form_help(form.title) }}
+    </div>
+</div>
+
+{# Boucle sur les erreurs globales #}
+{% if form.vars.errors|length > 0 %}
+    <div class="alert alert-danger">
+        {% for error in form.vars.errors %}
+            <p>{{ error.message }}</p>
+        {% endfor %}
+    </div>
+{% endif %}
+```
+
+## ✅ Bonnes Pratiques
+
+1. **Un FormType par entité** - Pas de formulaires fourre-tout
+2. **Validation côté serveur** - Jamais faire confiance au client
+3. **Traductions** - Tous les labels traduits
+4. **Messages d'aide** - Guider l'utilisateur
+5. **Valeurs par défaut** - Définir dans `configureOptions()`
+6. **Types PrestaShop** - Utiliser les types natifs (SwitchType, etc.)
+7. **Groupes de validation** - Pour les validations conditionnelles

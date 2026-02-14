@@ -1,0 +1,58 @@
+# =============================================================================
+# WEDEV Extension EntityPicker - Services Configuration
+# =============================================================================
+# À inclure dans le fichier config/services.yml du module principal :
+#
+# imports:
+#     - { resource: '../src/Extension/EntityPicker/config/services_entitypicker.yml' }
+# =============================================================================
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # -------------------------------------------------------------------------
+    # Providers
+    # -------------------------------------------------------------------------
+    Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Provider\ProductProvider:
+        arguments:
+            $db: null
+            $legacyContext: '@prestashop.adapter.legacy.context'
+        public: true
+
+    Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Provider\CategoryProvider:
+        arguments:
+            $db: null
+            $legacyContext: '@prestashop.adapter.legacy.context'
+        public: true
+
+    Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Provider\CustomerProvider:
+        arguments:
+            $db: null
+            $legacyContext: '@prestashop.adapter.legacy.context'
+        public: true
+
+    # -------------------------------------------------------------------------
+    # Form Type
+    # -------------------------------------------------------------------------
+    Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Form\EntityPickerType:
+        tags:
+            - { name: form.type }
+
+    # -------------------------------------------------------------------------
+    # Aliases pour utilisation simplifiée
+    # -------------------------------------------------------------------------
+    wedev.entitypicker.product_provider:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Provider\ProductProvider
+        public: true
+
+    wedev.entitypicker.category_provider:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Provider\CategoryProvider
+        public: true
+
+    wedev.entitypicker.customer_provider:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\EntityPicker\Provider\CustomerProvider
+        public: true
+

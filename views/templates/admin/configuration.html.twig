@@ -1,0 +1,186 @@
+{# **
+ * Module Starter - Configuration Page Template
+ *
+ * @var FormView configurationForm
+ * @var string moduleVersion
+ * #}
+
+{% extends '@PrestaShop/Admin/layout.html.twig' %}
+
+{% block content %}
+<div class="wepresta_passwordless_login-config">
+    {# Header Info Cards #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-header-title">
+                        <i class="material-icons">settings</i>
+                        {{ 'Module Starter Configuration'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                    </h3>
+                    <span class="badge badge-info">v{{ moduleVersion }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Statistics Cards #}
+    <div class="wepresta_passwordless_login-info-cards mb-4">
+        <div class="wepresta_passwordless_login-info-card wepresta_passwordless_login-info-card--success">
+            <div class="wepresta_passwordless_login-info-card__icon">
+                <i class="material-icons">check_circle</i>
+            </div>
+            <div class="wepresta_passwordless_login-info-card__title">{{ 'Status'|trans({}, 'Admin.Global') }}</div>
+            <div class="wepresta_passwordless_login-info-card__value">{{ 'Active'|trans({}, 'Admin.Global') }}</div>
+        </div>
+
+        <div class="wepresta_passwordless_login-info-card">
+            <div class="wepresta_passwordless_login-info-card__icon">
+                <i class="material-icons">storage</i>
+            </div>
+            <div class="wepresta_passwordless_login-info-card__title">{{ 'Items'|trans({}, 'Admin.Global') }}</div>
+            <div class="wepresta_passwordless_login-info-card__value">0</div>
+        </div>
+
+        <div class="wepresta_passwordless_login-info-card">
+            <div class="wepresta_passwordless_login-info-card__icon">
+                <i class="material-icons">schedule</i>
+            </div>
+            <div class="wepresta_passwordless_login-info-card__title">{{ 'Cache TTL'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}</div>
+            <div class="wepresta_passwordless_login-info-card__value">3600s</div>
+        </div>
+    </div>
+
+    {# Configuration Form #}
+    <div class="row">
+        <div class="col-xl-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-header-title">
+                        <i class="material-icons">tune</i>
+                        {{ 'Settings'|trans({}, 'Admin.Global') }}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {{ form_start(configurationForm) }}
+
+                    <div class="form-group row">
+                        {{ form_label(configurationForm.active) }}
+                        <div class="col-sm">
+                            {{ form_widget(configurationForm.active) }}
+                            {{ form_errors(configurationForm.active) }}
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        {{ form_label(configurationForm.title) }}
+                        <div class="col-sm">
+                            {{ form_widget(configurationForm.title) }}
+                            {{ form_errors(configurationForm.title) }}
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        {{ form_label(configurationForm.description) }}
+                        <div class="col-sm">
+                            {{ form_widget(configurationForm.description) }}
+                            {{ form_errors(configurationForm.description) }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h4>{{ 'Advanced Settings'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}</h4>
+
+                    <div class="form-group row">
+                        {{ form_label(configurationForm.debug) }}
+                        <div class="col-sm">
+                            {{ form_widget(configurationForm.debug) }}
+                            {{ form_errors(configurationForm.debug) }}
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        {{ form_label(configurationForm.cache_ttl) }}
+                        <div class="col-sm">
+                            {{ form_widget(configurationForm.cache_ttl) }}
+                            {{ form_errors(configurationForm.cache_ttl) }}
+                        </div>
+                    </div>
+
+                    <div class="form-group row">
+                        {{ form_label(configurationForm.api_enabled) }}
+                        <div class="col-sm">
+                            {{ form_widget(configurationForm.api_enabled) }}
+                            {{ form_errors(configurationForm.api_enabled) }}
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="material-icons">save</i>
+                            {{ 'Save'|trans({}, 'Admin.Actions') }}
+                        </button>
+                    </div>
+
+                    {{ form_end(configurationForm) }}
+                </div>
+            </div>
+        </div>
+
+        {# Sidebar #}
+        <div class="col-xl-4">
+            {# Quick Links #}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-header-title">
+                        <i class="material-icons">link</i>
+                        {{ 'Quick Links'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="{{ path('wepresta_passwordless_login_items_index') }}" class="list-group-item list-group-item-action">
+                            <i class="material-icons">list</i>
+                            {{ 'Manage Items'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <i class="material-icons">cached</i>
+                            {{ 'Clear Cache'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {# Documentation #}
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-header-title">
+                        <i class="material-icons">help_outline</i>
+                        {{ 'Documentation'|trans({}, 'Admin.Global') }}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        {{ 'Need help? Check our documentation for detailed guides and API references.'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                    </p>
+                    <a href="https://devdocs.prestashop.com" target="_blank" class="wepresta_passwordless_login-docs">
+                        <i class="material-icons">menu_book</i>
+                        {{ 'View Documentation'|trans({}, 'Admin.Actions') }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="{{ asset('../modules/wepresta_passwordless_login/views/js/admin.js') }}"></script>
+{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('../modules/wepresta_passwordless_login/views/css/admin.css') }}">
+{% endblock %}

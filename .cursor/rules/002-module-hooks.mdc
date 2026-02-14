@@ -1,0 +1,489 @@
+---
+description: Hooks PrestaShop - Display et Action hooks avec exemples
+globs: ["modulestarter.php", "src/**/*.php"]
+alwaysApply: false
+---
+
+# Hooks PrestaShop
+
+## 🪝 Concepts Fondamentaux
+
+Les hooks sont le mécanisme d'extension de PrestaShop:
+- **Display hooks**: Retournent du HTML à afficher
+- **Action hooks**: Déclenchent une logique sans retour
+
+## 📝 Déclaration des Hooks
+
+```php
+// Dans le module principal
+class ModuleStarter extends Module
+{
+    /**
+     * Liste EXHAUSTIVE des hooks utilisés par le module.
+     * Tous les hooks DOIVENT être listés ici.
+     */
+    public const HOOKS = [
+        // Front Office - Display
+        'displayHeader',
+        'displayHome',
+        'displayFooter',
+        'displayProductAdditionalInfo',
+        'displayShoppingCart',
+        'displayOrderConfirmation',
+
+        // Front Office - Actions
+        'actionFrontControllerSetMedia',
+        'actionCartSave',
+        'actionValidateOrder',
+        'actionCustomerAccountAdd',
+
+        // Back Office
+        'actionAdminControllerSetMedia',
+        'actionObjectProductAddAfter',
+        'actionObjectProductUpdateAfter',
+    ];
+
+    public function install(): bool
+    {
+        return parent::install()
+            && $this->registerHook(self::HOOKS); // Enregistre TOUS les hooks d'un coup
+    }
+}
+```
+
+## 🖥️ Display Hooks (Front-Office)
+
+### displayHeader - CSS/JS dans `<head>`
+
+```php
+/**
+ * Ajoute des assets dans le <head> de la page.
+ *
+ * @param array{cookie: Cookie, cart: Cart} $params
+ */
+public function hookDisplayHeader(array $params): string
+{
+    // Vérifier si le module est actif
+    if (!$this->isActive()) {
+        return '';
+    }
+
+    // Enregistrer le CSS
+    $this->context->controller->registerStylesheet(
+        'modulestarter-front',                              // ID unique
+        'modules/' . $this->name . '/views/css/front.css',  // Chemin relatif
+        [
+            'media' => 'all',        // all, screen, print
+            'priority' => 150,       // Plus bas = chargé avant (default: 50)
+            'version' => $this->version,
+        ]
+    );
+
+    // CSS conditionnel selon la page
+    $controller = Tools::getValue('controller');
+    if ($controller === 'product') {
+        $this->context->controller->registerStylesheet(
+            'modulestarter-product',
+            'modules/' . $this->name . '/views/css/product.css',
+            ['media' => 'all', 'priority' => 151]
+        );
+    }
+
+    // Retourner du HTML inline si nécessaire (rare)
+    return '';
+}
+```
+
+### displayHome - Page d'accueil
+
+```php
+/**
+ * Affiche du contenu sur la page d'accueil.
+ *
+ * @param array{cookie: Cookie, cart: Cart} $params
+ * @return string HTML à afficher
+ */
+public function hookDisplayHome(array $params): string
+{
+    if (!$this->isActive()) {
+        return '';
+    }
+
+    // Utiliser le cache Smarty pour les performances
+    $cacheId = $this->getCacheId('home');
+
+    if (!$this->isCached('module:modulestarter/views/templates/hook/home.tpl', $cacheId)) {
+        // Récupérer les données via le service (pas directement la DB!)
+        $service = $this->getService(ModuleStarterService::class);
+        $items = $service->getActiveItems();
+
+        // Assigner les variables au template
+        $this->context->smarty->assign([
+            'modulestarter' => [
+                'items' => $items,
+                'title' => $this->getConfig()->get('MODULESTARTER_TITLE'),
+                'link' => $this->context->link->getModuleLink($this->name, 'display'),
+            ],
+        ]);
+    }
+
+    // Syntaxe module: pour les templates dans views/templates/
+    return $this->fetch('module:modulestarter/views/templates/hook/home.tpl', $cacheId);
+}
+```
+
+### displayProductAdditionalInfo - Fiche produit
+
+```php
+/**
+ * Affiche des informations supplémentaires sur la fiche produit.
+ *
+ * @param array{product: ProductLazyArray|array} $params
+ */
+public function hookDisplayProductAdditionalInfo(array $params): string
+{
+    if (!$this->isActive()) {
+        return '';
+    }
+
+    // Récupérer le produit (attention: peut être un array ou un objet)
+    $product = $params['product'];
+
+    // Récupérer l'ID produit de manière sécurisée
+    $productId = is_array($product)
+        ? (int) ($product['id_product'] ?? 0)
+        : (int) ($product->id ?? 0);
+
+    if ($productId === 0) {
+        return '';
+    }
+
+    // Récupérer des données spécifiques au produit
+    $service = $this->getService(ModuleStarterService::class);
+    $productData = $service->getProductData($productId);
+
+    if ($productData === null) {
+        return '';
+    }
+
+    $this->context->smarty->assign([
+        'modulestarter_product' => $productData,
+    ]);
+
+    return $this->fetch('module:modulestarter/views/templates/hook/product-info.tpl');
+}
+```
+
+### displayShoppingCart - Panier
+
+```php
+/**
+ * Affiche du contenu dans le panier.
+ *
+ * @param array{cart: Cart, products: array} $params
+ */
+public function hookDisplayShoppingCart(array $params): string
+{
+    if (!$this->isActive()) {
+        return '';
+    }
+
+    /** @var Cart $cart */
+    $cart = $params['cart'];
+
+    // Calculer quelque chose basé sur le panier
+    $cartTotal = (float) $cart->getOrderTotal(true, Cart::BOTH);
+
+    $this->context->smarty->assign([
+        'cart_total' => $cartTotal,
+        'show_promo' => $cartTotal > 100,
+    ]);
+
+    return $this->fetch('module:modulestarter/views/templates/hook/cart.tpl');
+}
+```
+
+## ⚡ Action Hooks (Front-Office)
+
+### actionFrontControllerSetMedia - Chargement JS
+
+```php
+/**
+ * Charge les assets JavaScript sur les pages front.
+ *
+ * @param array{} $params (vide pour ce hook)
+ */
+public function hookActionFrontControllerSetMedia(array $params): void
+{
+    if (!$this->isActive()) {
+        return;
+    }
+
+    $controller = Tools::getValue('controller');
+
+    // JS uniquement sur certaines pages
+    $jsPages = ['product', 'category', 'index', 'cart', 'order'];
+
+    if (in_array($controller, $jsPages, true)) {
+        $this->context->controller->registerJavascript(
+            'modulestarter-front',
+            'modules/' . $this->name . '/views/js/front.js',
+            [
+                'position' => 'bottom',      // head ou bottom
+                'priority' => 150,
+                'attributes' => 'defer',     // defer, async, ou vide
+            ]
+        );
+    }
+
+    // Passer des données au JavaScript
+    Media::addJsDef([
+        'modulestarterConfig' => [
+            'ajaxUrl' => $this->context->link->getModuleLink($this->name, 'ajax'),
+            'token' => Tools::getToken(false),
+            'lang' => $this->context->language->iso_code,
+        ],
+    ]);
+}
+```
+
+### actionValidateOrder - Commande validée
+
+```php
+/**
+ * Déclenché APRÈS la validation d'une commande.
+ *
+ * @param array{
+ *     cart: Cart,
+ *     order: Order,
+ *     customer: Customer,
+ *     currency: Currency,
+ *     orderStatus: OrderState
+ * } $params
+ */
+public function hookActionValidateOrder(array $params): void
+{
+    if (!$this->isActive()) {
+        return;
+    }
+
+    /** @var Order $order */
+    $order = $params['order'];
+
+    /** @var Customer $customer */
+    $customer = $params['customer'];
+
+    try {
+        // Déléguer au service
+        $this->getService(OrderService::class)->onOrderValidated(
+            $order->id,
+            $order->reference,
+            (float) $order->total_paid,
+            $customer->email
+        );
+
+        $this->log('Order processed', 1, [
+            'order_id' => $order->id,
+            'reference' => $order->reference,
+        ]);
+    } catch (\Exception $e) {
+        // IMPORTANT: Ne jamais faire échouer la commande à cause du module!
+        $this->log('Order hook failed: ' . $e->getMessage(), 3);
+    }
+}
+```
+
+### actionCartSave - Sauvegarde du panier
+
+```php
+/**
+ * Déclenché à chaque modification du panier.
+ *
+ * ⚠️ ATTENTION: Ce hook est appelé TRÈS fréquemment!
+ * Évitez les opérations lourdes.
+ *
+ * @param array{cart: Cart} $params
+ */
+public function hookActionCartSave(array $params): void
+{
+    if (!$this->isActive()) {
+        return;
+    }
+
+    /** @var Cart $cart */
+    $cart = $params['cart'] ?? $this->context->cart;
+
+    // Exemple: Invalider un cache quand le panier change
+    $cacheKey = 'modulestarter_cart_' . $cart->id;
+    Cache::getInstance()->delete($cacheKey);
+
+    // Log en mode debug uniquement (ce hook est très fréquent)
+    if ($this->isDebugEnabled()) {
+        $this->log('Cart saved', 1, ['cart_id' => $cart->id]);
+    }
+}
+```
+
+### actionCustomerAccountAdd - Nouveau client
+
+```php
+/**
+ * Déclenché après l'inscription d'un nouveau client.
+ *
+ * @param array{newCustomer: Customer} $params
+ */
+public function hookActionCustomerAccountAdd(array $params): void
+{
+    if (!$this->isActive()) {
+        return;
+    }
+
+    /** @var Customer $customer */
+    $customer = $params['newCustomer'];
+
+    // Exemple: Ajouter à une liste de diffusion
+    $this->getService(NewsletterService::class)->subscribeCustomer(
+        $customer->email,
+        $customer->firstname,
+        $customer->lastname
+    );
+
+    // Exemple: Envoyer à un CRM
+    $this->getService(CrmService::class)->createContact([
+        'email' => $customer->email,
+        'firstname' => $customer->firstname,
+        'lastname' => $customer->lastname,
+        'source' => 'prestashop_registration',
+    ]);
+}
+```
+
+## 🔧 Action Hooks (Back-Office)
+
+### actionAdminControllerSetMedia - Assets admin
+
+```php
+/**
+ * Charge les assets dans le back-office.
+ *
+ * @param array{} $params
+ */
+public function hookActionAdminControllerSetMedia(array $params): void
+{
+    // Uniquement sur la page de configuration du module
+    if (!$this->isConfigurationPage()) {
+        return;
+    }
+
+    $this->context->controller->addCSS($this->_path . 'views/css/admin.css');
+    $this->context->controller->addJS($this->_path . 'views/js/admin.js');
+
+    // Variables JS pour l'admin
+    Media::addJsDef([
+        'moduleStarterAdminUrl' => $this->context->link->getAdminLink(
+            'AdminModuleStarterConfiguration'
+        ),
+    ]);
+}
+
+private function isConfigurationPage(): bool
+{
+    return $this->context->controller instanceof AdminModulesController
+        && Tools::getValue('configure') === $this->name;
+}
+```
+
+### actionObjectProductAddAfter - Après ajout produit
+
+```php
+/**
+ * Déclenché APRÈS l'ajout d'un produit.
+ *
+ * Pattern: actionObject{ObjectType}{Action}After
+ * - ObjectType: Product, Category, Customer, Order, etc.
+ * - Action: Add, Update, Delete
+ *
+ * @param array{object: Product} $params
+ */
+public function hookActionObjectProductAddAfter(array $params): void
+{
+    /** @var Product $product */
+    $product = $params['object'];
+
+    // Indexer le produit dans un système externe
+    $this->getService(SearchIndexService::class)->indexProduct($product->id);
+
+    // Invalider le cache
+    $this->clearModuleCache();
+
+    $this->log('Product added', 1, ['product_id' => $product->id]);
+}
+```
+
+### actionObjectProductUpdateAfter - Après mise à jour produit
+
+```php
+/**
+ * Déclenché APRÈS la mise à jour d'un produit.
+ *
+ * @param array{object: Product} $params
+ */
+public function hookActionObjectProductUpdateAfter(array $params): void
+{
+    /** @var Product $product */
+    $product = $params['object'];
+
+    // Ré-indexer le produit
+    $this->getService(SearchIndexService::class)->updateProduct($product->id);
+
+    // Invalider les caches liés
+    $this->_clearCache('*');
+
+    $this->log('Product updated', 1, ['product_id' => $product->id]);
+}
+```
+
+## 📋 Référence des Hooks Courants
+
+### Display Hooks
+
+| Hook | Emplacement | Usage |
+|------|-------------|-------|
+| `displayHeader` | `<head>` | CSS, meta tags |
+| `displayTop` | Barre supérieure | Navigation secondaire |
+| `displayNav1` | Navigation 1 | Liens (login, compte) |
+| `displayNav2` | Navigation 2 | Devise, langue |
+| `displayHome` | Page d'accueil | Contenu principal |
+| `displayLeftColumn` | Colonne gauche | Widgets, filtres |
+| `displayRightColumn` | Colonne droite | Widgets |
+| `displayFooter` | Footer | Contenu pied de page |
+| `displayProductAdditionalInfo` | Fiche produit | Infos supplémentaires |
+| `displayProductButtons` | Fiche produit | Boutons d'action |
+| `displayShoppingCart` | Panier | Infos panier |
+| `displayCheckoutStep` | Tunnel de commande | Étapes custom |
+| `displayOrderConfirmation` | Confirmation | Message post-commande |
+| `displayCustomerAccount` | Mon compte | Liens additionnels |
+
+### Action Hooks
+
+| Hook | Déclencheur | Usage |
+|------|-------------|-------|
+| `actionFrontControllerSetMedia` | Chaque page front | CSS/JS conditionnels |
+| `actionValidateOrder` | Commande validée | Post-traitement commande |
+| `actionCartSave` | Modification panier | Cache, calculs |
+| `actionCustomerAccountAdd` | Inscription client | CRM, newsletter |
+| `actionAuthentication` | Connexion client | Logging, session |
+| `actionObjectProductAddAfter` | Ajout produit | Indexation, sync |
+| `actionObjectProductUpdateAfter` | Modification produit | Ré-indexation |
+| `actionObjectOrderAddAfter` | Création commande | Notifications |
+| `actionAdminControllerSetMedia` | Page admin | Assets back-office |
+
+## ⚠️ Bonnes Pratiques
+
+1. **Toujours vérifier l'activation** du module en début de hook
+2. **Déléguer au service** - Pas de logique métier dans les hooks
+3. **Gérer les exceptions** - Ne jamais faire planter PrestaShop
+4. **Optimiser les action hooks** - Certains sont très fréquents
+5. **Utiliser le cache** - `$this->isCached()` pour les display hooks
+6. **Typer les paramètres** - Documenter avec PHPDoc
+7. **Retourner '' (string vide)** - Jamais `null` pour les display hooks

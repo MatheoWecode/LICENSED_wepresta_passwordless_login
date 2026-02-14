@@ -1,0 +1,412 @@
+/**
+ * Module Starter - Styles Back-Office
+ * Compiled from _dev/scss/admin.scss
+ */
+
+/* Variables alignées sur PrestaShop 8 */
+:root {
+    --ps-primary: #25b9d7;
+    --ps-secondary: #363a41;
+    --ps-success: #70b580;
+    --ps-warning: #f0ad4e;
+    --ps-danger: #d9534f;
+    --ps-dark: #232323;
+    --ps-light: #f5f5f5;
+    --ps-border: #e5e5e5;
+}
+
+/* Module configuration page */
+.wepresta_passwordless_login-config {
+    max-width: 100%;
+}
+
+.wepresta_passwordless_login-config .panel {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.wepresta_passwordless_login-config .panel-heading {
+    background: linear-gradient(135deg, #25b9d7, #1a8a9e);
+    color: white;
+    border-radius: 8px 8px 0 0;
+    padding: 15px 20px;
+}
+
+.wepresta_passwordless_login-config .panel-heading .panel-title {
+    font-weight: 600;
+}
+
+/* Panel de configuration */
+.wepresta_passwordless_login-admin-panel {
+    margin-bottom: 1.5rem;
+}
+
+.wepresta_passwordless_login-admin-header {
+    background: linear-gradient(135deg, #25b9d7 0%, #1a8a9e 100%);
+    color: #fff;
+    padding: 1.5rem;
+    border-radius: 4px 4px 0 0;
+    margin-bottom: 0;
+}
+
+.wepresta_passwordless_login-admin-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.wepresta_passwordless_login-admin-header p {
+    margin: 0.5rem 0 0;
+    opacity: 0.9;
+    font-size: 0.875rem;
+}
+
+/* Info cards */
+.wepresta_passwordless_login-info-cards {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin-bottom: 30px;
+}
+
+.wepresta_passwordless_login-info-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    border-left: 4px solid #25b9d7;
+}
+
+.wepresta_passwordless_login-info-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: rgba(37, 185, 215, 0.1);
+    border-radius: 50%;
+    margin-bottom: 15px;
+}
+
+.wepresta_passwordless_login-info-card__icon i {
+    font-size: 24px;
+    color: #25b9d7;
+}
+
+.wepresta_passwordless_login-info-card__title {
+    font-size: 0.85rem;
+    color: #363a41;
+    margin-bottom: 5px;
+}
+
+.wepresta_passwordless_login-info-card__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #232323;
+}
+
+.wepresta_passwordless_login-info-card--success {
+    border-color: #70b580;
+}
+
+.wepresta_passwordless_login-info-card--success .wepresta_passwordless_login-info-card__icon {
+    background: rgba(112, 181, 128, 0.1);
+}
+
+.wepresta_passwordless_login-info-card--success .wepresta_passwordless_login-info-card__icon i {
+    color: #70b580;
+}
+
+.wepresta_passwordless_login-info-card--warning {
+    border-color: #f0ad4e;
+}
+
+.wepresta_passwordless_login-info-card--warning .wepresta_passwordless_login-info-card__icon {
+    background: rgba(240, 173, 78, 0.1);
+}
+
+.wepresta_passwordless_login-info-card--warning .wepresta_passwordless_login-info-card__icon i {
+    color: #f0ad4e;
+}
+
+.wepresta_passwordless_login-info-card--danger {
+    border-color: #d9534f;
+}
+
+.wepresta_passwordless_login-info-card--danger .wepresta_passwordless_login-info-card__icon {
+    background: rgba(217, 83, 79, 0.1);
+}
+
+.wepresta_passwordless_login-info-card--danger .wepresta_passwordless_login-info-card__icon i {
+    color: #d9534f;
+}
+
+/* Alertes personnalisées */
+.wepresta_passwordless_login-alert {
+    padding: 1rem 1.25rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.wepresta_passwordless_login-alert-info {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    color: #1565c0;
+}
+
+.wepresta_passwordless_login-alert-success {
+    background: #e8f5e9;
+    border-left: 4px solid #4caf50;
+    color: #2e7d32;
+}
+
+.wepresta_passwordless_login-alert-warning {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    color: #ef6c00;
+}
+
+/* Version badge */
+.wepresta_passwordless_login-version {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+}
+
+/* Toggle switch custom */
+.wepresta_passwordless_login-toggle {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+}
+
+.wepresta_passwordless_login-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.wepresta_passwordless_login-toggle input:checked + .slider {
+    background-color: #70b580;
+}
+
+.wepresta_passwordless_login-toggle input:checked + .slider::before {
+    transform: translateX(24px);
+}
+
+.wepresta_passwordless_login-toggle input:focus + .slider {
+    box-shadow: 0 0 0 3px rgba(112, 181, 128, 0.3);
+}
+
+.wepresta_passwordless_login-toggle input:disabled + .slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.wepresta_passwordless_login-toggle .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.wepresta_passwordless_login-toggle .slider::before {
+    position: absolute;
+    content: '';
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Sortable items */
+.wepresta_passwordless_login-sortable {
+    min-height: 100px;
+}
+
+.wepresta_passwordless_login-sortable .sortable-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    transition: box-shadow 0.2s;
+}
+
+.wepresta_passwordless_login-sortable .sortable-item:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.wepresta_passwordless_login-sortable .sortable-item.ui-sortable-helper {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.wepresta_passwordless_login-sortable .sortable-handle {
+    cursor: grab;
+    padding: 10px;
+    margin-right: 15px;
+    color: #999;
+}
+
+.wepresta_passwordless_login-sortable .sortable-handle:active {
+    cursor: grabbing;
+}
+
+.wepresta_passwordless_login-sortable .sortable-handle i {
+    font-size: 18px;
+}
+
+.wepresta_passwordless_login-sortable .sortable-placeholder {
+    height: 60px;
+    margin-bottom: 10px;
+    background: rgba(37, 185, 215, 0.1);
+    border: 2px dashed #25b9d7;
+    border-radius: 8px;
+}
+
+/* Loading states */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-overlay::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9998;
+}
+
+.loading-overlay::after {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 50px;
+    height: 50px;
+    margin: -25px 0 0 -25px;
+    border: 4px solid #f5f5f5;
+    border-top-color: #25b9d7;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    z-index: 9999;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Status badges */
+.wepresta_passwordless_login-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.wepresta_passwordless_login-status--active {
+    background: rgba(112, 181, 128, 0.15);
+    color: #4a8a58;
+}
+
+.wepresta_passwordless_login-status--inactive {
+    background: rgba(217, 83, 79, 0.15);
+    color: #c44742;
+}
+
+.wepresta_passwordless_login-status--pending {
+    background: rgba(240, 173, 78, 0.15);
+    color: #b37f2a;
+}
+
+/* Quick actions */
+.wepresta_passwordless_login-quick-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.wepresta_passwordless_login-quick-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.wepresta_passwordless_login-quick-actions .btn i {
+    font-size: 16px;
+}
+
+.wepresta_passwordless_login-quick-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Documentation link */
+.wepresta_passwordless_login-docs {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.wepresta_passwordless_login-docs:hover {
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+}
+
+.wepresta_passwordless_login-docs i {
+    font-size: 18px;
+}

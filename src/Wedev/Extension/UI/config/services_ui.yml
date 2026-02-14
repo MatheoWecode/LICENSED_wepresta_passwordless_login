@@ -1,0 +1,32 @@
+# =============================================================================
+# WEDEV UI Extension - Services Configuration
+# =============================================================================
+# À inclure dans le fichier config/services.yml du module principal :
+#
+# imports:
+#     - { resource: '../src/Extension/UI/config/services_ui.yml' }
+# =============================================================================
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # -------------------------------------------------------------------------
+    # Twig Extension
+    # -------------------------------------------------------------------------
+    Wepresta_Passwordless_Login\Wedev\Extension\UI\Twig\UiExtension:
+        tags: ['twig.extension']
+
+    # -------------------------------------------------------------------------
+    # Alias pour utilisation simplifiée
+    # -------------------------------------------------------------------------
+    wedev.ui.twig_extension:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\UI\Twig\UiExtension
+        public: true
+
+
+
+
+

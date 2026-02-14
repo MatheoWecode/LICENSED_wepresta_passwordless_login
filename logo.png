@@ -1,0 +1,4 @@
+Ce fichier est un placeholder.
+Remplacez-le par un vrai logo PNG 32x32.
+Vous pouvez convertir le logo.svg avec:
+  convert logo.svg -resize 32x32 logo.png

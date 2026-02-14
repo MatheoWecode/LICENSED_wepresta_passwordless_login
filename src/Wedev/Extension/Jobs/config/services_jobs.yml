@@ -1,0 +1,29 @@
+# Extension Jobs - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Extension/Jobs/config/services_jobs.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Repository des jobs
+    Wepresta_Passwordless_Login\Wedev\Extension\Jobs\JobRepository:
+        public: true
+
+    # Dispatcher de jobs
+    Wepresta_Passwordless_Login\Wedev\Extension\Jobs\JobDispatcher:
+        public: true
+
+    # Alias courts
+    wedev.job_repository:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Jobs\JobRepository
+        public: true
+
+    wedev.job_dispatcher:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Jobs\JobDispatcher
+        public: true
+

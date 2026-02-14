@@ -1,0 +1,461 @@
+---
+description: Qualité du code - PHPStan, PHP-CS-Fixer, Rector, CI/CD
+globs: ["**/*.php", "phpstan.neon", ".php-cs-fixer.php", "rector.php"]
+alwaysApply: false
+---
+
+# Qualité du Code
+
+## 🔍 PHPStan - Analyse Statique
+
+### Configuration
+
+```neon
+# phpstan.neon
+
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: 6
+
+    paths:
+        - src/
+        - modulestarter.php
+        - controllers/
+
+    excludePaths:
+        - vendor/
+        - tests/
+
+    # Constantes PrestaShop
+    bootstrapFiles:
+        - tests/bootstrap.php
+
+    # Ignorer certaines erreurs connues
+    ignoreErrors:
+        - '#Call to an undefined method Context::#'
+        - '#Access to an undefined property Context::#'
+        - '#Call to an undefined method Smarty::#'
+
+    # Niveau strict pour le nouveau code
+    treatPhpDocTypesAsCertain: false
+```
+
+### Niveaux PHPStan
+
+| Niveau | Description |
+|--------|-------------|
+| 0 | Vérifie les erreurs de base |
+| 1 | Variables inconnues, appels sur types mixtes |
+| 2 | Méthodes inconnues sur $this et object |
+| 3 | Valeurs de retour |
+| 4 | Types des paramètres |
+| 5 | Types sur les propriétés |
+| **6** | **Type hints manquants (recommandé)** |
+| 7 | Union types partiellement incorrects |
+| 8 | Méthodes nullable non vérifiées |
+| 9 | Types mixtes stricts |
+
+### Exécution
+
+```bash
+# Analyser tout le code
+composer phpstan
+
+# Avec le baseline (ignorer les erreurs existantes)
+vendor/bin/phpstan analyse --generate-baseline
+
+# Analyser un fichier spécifique
+vendor/bin/phpstan analyse src/Application/Service/
+```
+
+## 🎨 PHP-CS-Fixer - Style de Code
+
+### Configuration
+
+```php
+<?php
+// .php-cs-fixer.php
+
+$finder = PhpCsFixer\Finder::create()
+    ->in(__DIR__ . '/src')
+    ->in(__DIR__ . '/controllers')
+    ->in(__DIR__ . '/tests')
+    ->name('*.php')
+    ->notName('*.tpl.php');
+
+return (new PhpCsFixer\Config())
+    ->setRiskyAllowed(true)
+    ->setRules([
+        '@PSR12' => true,
+        '@PHP81Migration' => true,
+
+        // Imports
+        'ordered_imports' => ['sort_algorithm' => 'alpha'],
+        'no_unused_imports' => true,
+        'global_namespace_import' => [
+            'import_classes' => true,
+            'import_constants' => false,
+            'import_functions' => false,
+        ],
+
+        // Arrays
+        'array_syntax' => ['syntax' => 'short'],
+        'trailing_comma_in_multiline' => ['elements' => ['arrays', 'arguments', 'parameters']],
+        'trim_array_spaces' => true,
+
+        // Braces
+        'braces' => ['position_after_control_structures' => 'same'],
+        'single_line_empty_body' => true,
+
+        // Strings
+        'single_quote' => true,
+        'explicit_string_variable' => true,
+
+        // Operators
+        'concat_space' => ['spacing' => 'one'],
+        'not_operator_with_successor_space' => false,
+        'binary_operator_spaces' => ['default' => 'single_space'],
+
+        // Classes
+        'class_attributes_separation' => [
+            'elements' => [
+                'const' => 'one',
+                'method' => 'one',
+                'property' => 'one',
+            ],
+        ],
+        'no_blank_lines_after_class_opening' => true,
+        'self_accessor' => true,
+
+        // Functions
+        'function_declaration' => ['closure_fn_spacing' => 'none'],
+        'method_argument_space' => ['on_multiline' => 'ensure_fully_multiline'],
+        'return_type_declaration' => ['space_before' => 'none'],
+        'void_return' => true,
+        'nullable_type_declaration_for_default_null_value' => true,
+
+        // PHPDoc
+        'phpdoc_align' => ['align' => 'left'],
+        'phpdoc_order' => true,
+        'phpdoc_separation' => true,
+        'phpdoc_single_line_var_spacing' => true,
+        'phpdoc_trim' => true,
+        'phpdoc_types' => true,
+        'phpdoc_var_annotation_correct_order' => true,
+        'no_superfluous_phpdoc_tags' => ['allow_mixed' => true],
+
+        // General
+        'no_extra_blank_lines' => true,
+        'no_trailing_whitespace' => true,
+        'no_whitespace_in_blank_line' => true,
+        'single_blank_line_at_eof' => true,
+
+        // Strict
+        'declare_strict_types' => true,
+        'strict_param' => true,
+        'strict_comparison' => true,
+    ])
+    ->setFinder($finder);
+```
+
+### Exécution
+
+```bash
+# Vérifier sans modifier
+composer cs-check
+# ou
+vendor/bin/php-cs-fixer fix --dry-run --diff
+
+# Corriger automatiquement
+composer cs-fix
+# ou
+vendor/bin/php-cs-fixer fix
+
+# Vérifier un fichier spécifique
+vendor/bin/php-cs-fixer fix src/Application/Service/ --dry-run
+```
+
+## 🔄 Rector - Refactoring Automatique
+
+### Configuration
+
+```php
+<?php
+// rector.php
+
+declare(strict_types=1);
+
+use Rector\Config\RectorConfig;
+use Rector\Set\ValueObject\SetList;
+use Rector\TypeDeclaration\Rector\ClassMethod\AddVoidReturnTypeWhereNoReturnRector;
+use Rector\TypeDeclaration\Rector\Property\TypedPropertyFromAssignsRector;
+
+return static function (RectorConfig $rectorConfig): void {
+    $rectorConfig->paths([
+        __DIR__ . '/src',
+        __DIR__ . '/controllers',
+    ]);
+
+    $rectorConfig->skip([
+        __DIR__ . '/vendor',
+    ]);
+
+    // PHP 8.1 Features
+    $rectorConfig->sets([
+        SetList::PHP_81,
+        SetList::TYPE_DECLARATION,
+        SetList::CODE_QUALITY,
+        SetList::DEAD_CODE,
+    ]);
+
+    // Règles individuelles
+    $rectorConfig->rules([
+        AddVoidReturnTypeWhereNoReturnRector::class,
+        TypedPropertyFromAssignsRector::class,
+    ]);
+
+    // Options
+    $rectorConfig->phpstanConfig(__DIR__ . '/phpstan.neon');
+    $rectorConfig->importNames();
+    $rectorConfig->parallel();
+};
+```
+
+### Exécution
+
+```bash
+# Voir les changements sans appliquer
+vendor/bin/rector --dry-run
+
+# Appliquer les changements
+vendor/bin/rector
+
+# Sur un dossier spécifique
+vendor/bin/rector process src/Application/
+```
+
+## 🔄 GitHub Actions CI
+
+### Workflow complet
+
+```yaml
+# .github/workflows/ci.yml
+
+name: CI
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main]
+
+jobs:
+    cs-check:
+        name: PHP-CS-Fixer
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.1'
+                  tools: php-cs-fixer
+
+            - name: Run PHP-CS-Fixer
+              run: php-cs-fixer fix --dry-run --diff
+
+    phpstan:
+        name: PHPStan
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.1'
+                  extensions: mbstring, intl, pdo_mysql
+
+            - name: Install dependencies
+              run: composer install --prefer-dist --no-progress
+
+            - name: Run PHPStan
+              run: vendor/bin/phpstan analyse
+
+    tests:
+        name: PHPUnit
+        runs-on: ubuntu-latest
+
+        strategy:
+            matrix:
+                php-version: ['8.1', '8.2', '8.3']
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: ${{ matrix.php-version }}
+                  extensions: mbstring, intl, pdo_mysql
+                  coverage: xdebug
+
+            - name: Install dependencies
+              run: composer install --prefer-dist --no-progress
+
+            - name: Run PHPUnit
+              run: vendor/bin/phpunit --coverage-clover coverage.xml
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v3
+              with:
+                  file: coverage.xml
+
+    build:
+        name: Build Module
+        runs-on: ubuntu-latest
+        needs: [cs-check, phpstan, tests]
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.1'
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+
+            - name: Install PHP dependencies
+              run: composer install --no-dev --prefer-dist --optimize-autoloader
+
+            - name: Install Node dependencies
+              run: npm ci
+
+            - name: Build assets
+              run: npm run build
+
+            - name: Create archive
+              run: |
+                  zip -r modulestarter.zip . \
+                      -x ".*" \
+                      -x "*.md" \
+                      -x "node_modules/*" \
+                      -x "_dev/*" \
+                      -x "tests/*" \
+                      -x "phpstan.neon" \
+                      -x ".php-cs-fixer.php" \
+                      -x "rector.php" \
+                      -x "phpunit.xml"
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: modulestarter
+                  path: modulestarter.zip
+```
+
+## 📦 composer.json Scripts
+
+```json
+{
+    "scripts": {
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix",
+        "phpstan": "phpstan analyse",
+        "phpstan:baseline": "phpstan analyse --generate-baseline",
+        "rector": "rector --dry-run",
+        "rector:fix": "rector",
+        "phpunit": "phpunit",
+        "phpunit:coverage": "phpunit --coverage-html coverage/",
+        "test": [
+            "@cs-check",
+            "@phpstan",
+            "@phpunit"
+        ],
+        "fix": [
+            "@cs-fix",
+            "@rector:fix"
+        ]
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.10",
+        "phpstan/phpstan-strict-rules": "^1.5",
+        "friendsofphp/php-cs-fixer": "^3.40",
+        "rector/rector": "^0.18",
+        "phpunit/phpunit": "^10.0"
+    }
+}
+```
+
+## 📊 Badges de Qualité
+
+```markdown
+# Dans le README.md
+
+![CI](https://github.com/user/modulestarter/workflows/CI/badge.svg)
+[![codecov](https://codecov.io/gh/user/modulestarter/branch/main/graph/badge.svg)](https://codecov.io/gh/user/modulestarter)
+[![PHPStan](https://img.shields.io/badge/PHPStan-level%206-brightgreen.svg)](https://phpstan.org/)
+[![PHP-CS-Fixer](https://img.shields.io/badge/code%20style-PSR12-blue.svg)](https://www.php-fig.org/psr/psr-12/)
+```
+
+## 📋 Pre-commit Hook
+
+```bash
+#!/bin/sh
+# .git/hooks/pre-commit
+
+# PHP-CS-Fixer
+echo "Running PHP-CS-Fixer..."
+vendor/bin/php-cs-fixer fix --dry-run --diff
+if [ $? -ne 0 ]; then
+    echo "PHP-CS-Fixer failed. Run 'composer cs-fix' to fix issues."
+    exit 1
+fi
+
+# PHPStan
+echo "Running PHPStan..."
+vendor/bin/phpstan analyse
+if [ $? -ne 0 ]; then
+    echo "PHPStan found errors."
+    exit 1
+fi
+
+# PHPUnit (optionnel, peut être lent)
+# echo "Running PHPUnit..."
+# vendor/bin/phpunit --testsuite Unit
+# if [ $? -ne 0 ]; then
+#     echo "Tests failed."
+#     exit 1
+# fi
+
+echo "All checks passed!"
+exit 0
+```
+
+## ✅ Checklist Qualité
+
+### Avant chaque commit
+- [ ] `composer cs-check` passe
+- [ ] `composer phpstan` passe
+- [ ] Tests unitaires passent
+
+### Avant chaque PR
+- [ ] Coverage > 80% sur le nouveau code
+- [ ] Pas de nouveaux warnings PHPStan
+- [ ] Code review effectuée
+- [ ] Documentation mise à jour
+
+### Avant chaque release
+- [ ] Tous les tests passent
+- [ ] Build de production fonctionne
+- [ ] Changelog mis à jour
+- [ ] Version incrémentée

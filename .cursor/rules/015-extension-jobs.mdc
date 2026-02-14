@@ -1,0 +1,159 @@
+---
+description: Extension Jobs WEDEV - File d'attente asynchrone
+globs: ["**/Extension/Jobs/**/*.php"]
+alwaysApply: false
+---
+
+# Extension Jobs WEDEV
+
+## 🎯 Objectif
+
+File d'attente pour exécuter des tâches lourdes de manière asynchrone.
+
+## 📦 Composants
+
+| Composant | Rôle |
+|-----------|------|
+| `AbstractJob` | Classe de base pour les jobs |
+| `JobDispatcher` | Met en queue et traite les jobs |
+| `JobRepository` | Persistance en base de données |
+| `JobEntry` | Représentation d'un job en queue |
+
+## ✅ Bonnes Pratiques
+
+### Création d'un Job
+
+```php
+// ✅ BON: Job atomique avec serialization complète
+final class SendEmailJob extends AbstractJob
+{
+    protected int $maxAttempts = 3;
+    protected int $retryDelay = 120;
+    protected int $timeout = 60;
+
+    public function __construct(
+        private readonly string $email,
+        private readonly string $subject,
+        private readonly string $content
+    ) {}
+
+    public function handle(): void
+    {
+        Mail::Send(...);
+    }
+
+    public function serialize(): array
+    {
+        return [
+            'email' => $this->email,
+            'subject' => $this->subject,
+            'content' => $this->content,
+        ];
+    }
+
+    public static function deserialize(array $data): self
+    {
+        return new self(
+            $data['email'],
+            $data['subject'],
+            $data['content']
+        );
+    }
+}
+```
+
+### Dispatch
+
+```php
+// ✅ BON: Dispatch avec délai si approprié
+$dispatcher->dispatch(new SendEmailJob(...), delay: 0);
+
+// ✅ BON: Dispatch différé pour rappels
+$dispatcher->dispatch(
+    new CartReminderJob($cartId),
+    delay: 3600 * 24  // 24h plus tard
+);
+
+// ❌ MAUVAIS: Dispatcher des jobs trop légers
+$dispatcher->dispatch(new IncrementCounterJob());  // Trop rapide, pas besoin de queue
+```
+
+### Gestion des Erreurs
+
+```php
+// ✅ BON: Gérer l'échec définitif
+public function onFailed(\Throwable $e): void
+{
+    // Notifier l'admin
+    Mail::Send(
+        ...,
+        to: Configuration::get('ADMIN_EMAIL'),
+        subject: 'Job failed: ' . $e->getMessage()
+    );
+
+    // Logger
+    parent::onFailed($e);
+}
+
+// ✅ BON: Exceptions explicites
+public function handle(): void
+{
+    if (!$this->validate()) {
+        throw new \InvalidArgumentException('Invalid job data');
+    }
+    // ...
+}
+```
+
+### Serialization
+
+```php
+// ✅ BON: Stocker les IDs, pas les objets
+public function serialize(): array
+{
+    return ['product_id' => $this->productId];  // ID seulement
+}
+
+// ❌ MAUVAIS: Stocker des objets complexes
+public function serialize(): array
+{
+    return ['product' => serialize($this->product)];  // Fragile!
+}
+```
+
+## 🚫 Anti-patterns
+
+```php
+// ❌ Jobs sans timeout approprié
+protected int $timeout = 99999;
+
+// ❌ Jobs avec dépendances externes non gérées
+public function handle(): void
+{
+    $client = $this->container->get(HttpClient::class);  // Container non dispo!
+}
+
+// ❌ Retry infini
+protected int $maxAttempts = 100;
+```
+
+## 📝 Configuration CRON
+
+```bash
+# Traitement toutes les minutes
+* * * * * curl -s "https://shop.com/module/mymodule/cron?token=XXX"
+
+# Nettoyage hebdomadaire
+0 3 * * 0 curl -s "https://shop.com/module/mymodule/cleanup?token=XXX"
+```
+
+## 📊 Monitoring
+
+```php
+$stats = $dispatcher->getQueueStats();
+// ['pending' => 15, 'running' => 2, 'completed' => 1234, 'failed' => 3]
+
+if ($stats['failed'] > 10) {
+    // Alerter l'admin
+}
+```

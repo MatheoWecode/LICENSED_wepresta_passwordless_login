@@ -1,0 +1,47 @@
+{# **
+ * Module Starter - Items List Template
+ * #}
+
+{% extends '@PrestaShop/Admin/layout.html.twig' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        {# Header Actions #}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>
+                <i class="material-icons">list</i>
+                {{ 'Module Starter Items'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+            </h2>
+            <a href="{{ path('wepresta_passwordless_login_items_create') }}" class="btn btn-primary">
+                <i class="material-icons">add</i>
+                {{ 'Add new'|trans({}, 'Admin.Actions') }}
+            </a>
+        </div>
+
+        {# Grid Container #}
+        <div class="card">
+            <div class="card-body">
+                {# Grid will be rendered here by PrestaShop Grid component #}
+                {% if grid is defined %}
+                    {{ include('@PrestaShop/Admin/Common/Grid/grid.html.twig', {grid: grid}) }}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="material-icons">info</i>
+                        {{ 'No items found. Create your first item to get started.'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                    </div>
+
+                    <div class="text-center py-5">
+                        <i class="material-icons" style="font-size: 64px; color: #ccc;">inbox</i>
+                        <p class="text-muted mt-3">{{ 'Your items will appear here'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}</p>
+                        <a href="{{ path('wepresta_passwordless_login_items_create') }}" class="btn btn-outline-primary mt-2">
+                            <i class="material-icons">add</i>
+                            {{ 'Create first item'|trans({}, 'Modules.Wepresta\Passwordless\Login.Admin') }}
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

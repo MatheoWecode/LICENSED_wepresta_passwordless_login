@@ -1,0 +1,100 @@
+---
+description: Extension Notifications WEDEV - Notifications multi-canal
+globs: ["**/Extension/Notifications/**/*.php"]
+alwaysApply: false
+---
+
+# Extension Notifications WEDEV
+
+## 🎯 Objectif
+
+Service de notifications multi-canal (Email, SMS, Push).
+
+## 📦 Composants
+
+| Composant | Rôle |
+|-----------|------|
+| `NotificationService` | Service principal |
+| `Notification` | Notification simple |
+| `TemplateNotification` | Notification avec template PS |
+| `Channel/*` | Canaux (Email, SMS, Push) |
+
+## ✅ Bonnes Pratiques
+
+### Envoi Simple
+
+```php
+// ✅ BON: Utiliser les helpers
+$service->notifyCustomer($customerId, 'Subject', 'Content');
+$service->notifyAdmins('Alert', 'System error detected');
+
+// ✅ BON: Notification avec données
+$service->send(new Notification(
+    recipients: [$email],
+    subject: 'Order #{order_id}',
+    content: 'Your order is ready',
+    data: ['order_id' => $order->id]
+));
+```
+
+### Templates PrestaShop
+
+```php
+// ✅ BON: Utiliser les templates PS existants
+$service->sendTemplate('order_conf', [$email], [
+    '{firstname}' => $customer->firstname,
+    '{order_reference}' => $order->reference,
+]);
+```
+
+### Multi-Canal
+
+```php
+// ✅ BON: Combiner les canaux
+$service->registerChannel('sms', new SmsChannel('twilio', $config));
+$service->registerChannel('push', new PushChannel('firebase', $config));
+
+$service->send(new Notification(
+    recipients: [$email, $phone, $pushToken],
+    subject: 'Urgent',
+    content: 'Action required',
+    channels: ['email', 'sms', 'push']
+));
+```
+
+## 🔒 Sécurité
+
+```php
+// ✅ BON: Ne jamais loguer les credentials
+$channel = new SmsChannel('twilio', [
+    'account_sid' => Configuration::get('TWILIO_SID'),  // Depuis config
+    'auth_token' => Configuration::get('TWILIO_TOKEN'),
+]);
+
+// ❌ MAUVAIS: Credentials en dur
+$channel = new SmsChannel('twilio', [
+    'account_sid' => 'ACxxxx',
+    'auth_token' => 'xxxxx',
+]);
+```
+
+## 🚫 Anti-patterns
+
+```php
+// ❌ Ignorer les erreurs d'envoi
+$service->send($notification);  // Sans vérifier le résultat
+
+// ✅ BON: Gérer les erreurs
+$result = $service->send($notification);
+if ($result['failed'] > 0) {
+    $this->log('warning', 'Notification failed: ' . implode(', ', $result['errors']));
+}
+
+// ❌ Envoyer des notifications bloquantes
+public function hookActionValidateOrder($params) {
+    $service->send(...);  // Peut ralentir la commande
+}
+
+// ✅ BON: Utiliser les jobs pour les notifications non-critiques
+$dispatcher->dispatch(new SendNotificationJob($notification));
+```

@@ -1,0 +1,185 @@
+---
+description: Extensions WEDEV disponibles
+globs: ["src/Wedev/Extension/**/*.php"]
+alwaysApply: false
+---
+
+# Extensions WEDEV
+
+## Vue d'Ensemble
+
+| Extension | Lignes | Usage |
+|-----------|--------|-------|
+| UI | ~1,200 | Composants Twig/Smarty, Alpine.js |
+| Http | ~1,350 | Client HTTP, auth, retry |
+| Rules | ~1,850 | Moteur de règles métier |
+| Jobs | ~1,150 | File d'attente async |
+| Audit | ~500 | Journal RGPD |
+| Notifications | ~700 | Email, SMS, Push |
+| Import | ~640 | CSV, JSON, XML |
+
+## Extension Http
+
+```php
+use MonModule\Extension\Http\HttpClient;
+use MonModule\Extension\Http\Auth\BearerAuth;
+
+$client = new HttpClient();
+
+// Requête simple
+$response = $client->get('https://api.example.com/data');
+
+// Avec auth et retry
+$response = $client
+    ->withAuth(new BearerAuth($token))
+    ->withRetry(3)
+    ->withTimeout(30)
+    ->postJson('https://api.openai.com/v1/chat/completions', [
+        'model' => 'gpt-4',
+        'messages' => $messages,
+    ]);
+
+if ($response->isSuccess()) {
+    $data = $response->json();
+}
+```
+
+## Extension Rules
+
+```php
+use MonModule\Extension\Rules\RuleBuilder;
+use MonModule\Extension\Rules\RuleEngine;
+use MonModule\Extension\Rules\RuleContext;
+use MonModule\Extension\Rules\Condition\CartCondition;
+use MonModule\Extension\Rules\Action\SetContextAction;
+
+// Créer une règle
+$rule = RuleBuilder::create('free_shipping')
+    ->when(new CartCondition('total', '>=', 50))
+    ->then(new SetContextAction('free_shipping', true))
+    ->priority(10)
+    ->build();
+
+// Évaluer
+$engine = new RuleEngine();
+$context = RuleContext::fromCurrentCart();
+$engine->executeFirst([$rule], $context);
+```
+
+## Extension Jobs
+
+```php
+use MonModule\Extension\Jobs\AbstractJob;
+use MonModule\Extension\Jobs\JobDispatcher;
+
+class SendEmailJob extends AbstractJob {
+    protected int $maxAttempts = 3;
+    protected int $retryDelay = 120;
+    
+    public function __construct(
+        private readonly string $email,
+        private readonly string $content
+    ) {}
+    
+    public function handle(): void {
+        Mail::Send(...);
+    }
+    
+    public function serialize(): array {
+        return ['email' => $this->email, 'content' => $this->content];
+    }
+    
+    public static function deserialize(array $data): self {
+        return new self($data['email'], $data['content']);
+    }
+}
+
+// Dispatch
+JobDispatcher::dispatch(new SendEmailJob($email, $content));
+JobDispatcher::later(60, new SendEmailJob($email, $content)); // Délai 60s
+```
+
+## Extension Audit
+
+```php
+use MonModule\Extension\Audit\AuditLogger;
+use MonModule\Extension\Audit\AuditableTrait;
+
+// Log direct
+AuditLogger::log('product.update', [
+    'entity_type' => 'Product',
+    'entity_id' => 123,
+    'old_values' => ['price' => 10],
+    'new_values' => ['price' => 15],
+]);
+
+// Via trait
+class ProductService {
+    use AuditableTrait;
+    
+    public function update(int $id, array $data): void {
+        $oldData = $this->repository->find($id);
+        $this->repository->update($id, $data);
+        $this->auditUpdate('Product', $id, $oldData, $data);
+    }
+}
+```
+
+## Extension Notifications
+
+```php
+use MonModule\Extension\Notifications\NotificationService;
+use MonModule\Extension\Notifications\Notification;
+
+$service = new NotificationService();
+
+// Email simple
+$service->send(Notification::to(
+    'customer@example.com',
+    'Order Confirmed',
+    'Thank you for your order!'
+));
+
+// Multi-canal
+$service->send(new Notification(
+    recipients: ['email@example.com', '+33612345678'],
+    subject: 'Urgent',
+    content: 'Action required',
+    channels: ['email', 'sms']
+));
+```
+
+## Extension Import
+
+```php
+use MonModule\Extension\Import\AbstractImporter;
+use MonModule\Extension\Import\Parser\CsvParser;
+
+class ProductImporter extends AbstractImporter {
+    protected function getRequiredColumns(): array {
+        return ['reference', 'name', 'price'];
+    }
+    
+    protected function processRow(array $row, int $lineNumber): void {
+        $this->validateRow($row, $lineNumber);
+        // Import logic...
+        $this->result->incrementCreated();
+    }
+}
+
+$importer = new ProductImporter(new CsvParser());
+$importer->setDryRun(true); // Simulation
+$result = $importer->import('/path/to/products.csv');
+echo $result->getSummary();
+```
+
+## Ajouter une Extension
+
+```bash
+# Via CLI
+wedev ps module add-ext http
+wedev ps module add-ext rules,jobs
+
+# Mettre à jour une extension
+wedev ps module update-ext http
+```

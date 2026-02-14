@@ -1,0 +1,205 @@
+// =============================================================================
+// WEDEV UI - Classes Utilitaires Admin
+// =============================================================================
+// Classes CSS utilitaires pour le back-office.
+// Complète Bootstrap 4 sans le remplacer.
+// =============================================================================
+
+@import '../variables';
+
+// -----------------------------------------------------------------------------
+// Spacing utilities - Compléments à Bootstrap
+// -----------------------------------------------------------------------------
+.gap-1 { gap: $ps-spacer-1; }
+.gap-2 { gap: $ps-spacer-2; }
+.gap-3 { gap: $ps-spacer-3; }
+.gap-4 { gap: $ps-spacer-4; }
+.gap-5 { gap: $ps-spacer-5; }
+
+// -----------------------------------------------------------------------------
+// Text utilities
+// -----------------------------------------------------------------------------
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.text-truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+// -----------------------------------------------------------------------------
+// Flex utilities
+// -----------------------------------------------------------------------------
+.flex-gap-1 { gap: $ps-spacer-1; }
+.flex-gap-2 { gap: $ps-spacer-2; }
+.flex-gap-3 { gap: $ps-spacer-3; }
+
+// -----------------------------------------------------------------------------
+// Loading states
+// -----------------------------------------------------------------------------
+.is-loading {
+    position: relative;
+    pointer-events: none;
+    
+    &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.7);
+        z-index: 10;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Card enhancements
+// -----------------------------------------------------------------------------
+.card-header{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.card-header-title {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: $ps-font-weight-semibold;
+    
+    .material-icons {
+        margin-right: $ps-spacer-2;
+        font-size: 20px;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Table enhancements
+// -----------------------------------------------------------------------------
+.table-hover-actions {
+    .row-actions {
+        opacity: 0;
+        transition: $ps-transition-fast;
+    }
+    
+    tr:hover .row-actions {
+        opacity: 1;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Form enhancements
+// -----------------------------------------------------------------------------
+.form-control-icon {
+    position: relative;
+    
+    .material-icons {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: $ps-muted;
+        font-size: 18px;
+    }
+    
+    input {
+        padding-left: 40px;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Badge variants
+// -----------------------------------------------------------------------------
+.badge-outline-primary {
+    background: transparent;
+    border: 1px solid $ps-primary;
+    color: $ps-primary;
+}
+
+.badge-outline-secondary {
+    background: transparent;
+    border: 1px solid $ps-secondary;
+    color: $ps-secondary;
+}
+
+.badge-outline-success {
+    background: transparent;
+    border: 1px solid $ps-success;
+    color: $ps-success;
+}
+
+.badge-outline-danger {
+    background: transparent;
+    border: 1px solid $ps-danger;
+    color: $ps-danger;
+}
+
+// -----------------------------------------------------------------------------
+// Animation utilities
+// -----------------------------------------------------------------------------
+.animate-fade-in {
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.animate-slide-in {
+    animation: slideIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Cursor utilities
+// -----------------------------------------------------------------------------
+.cursor-pointer { cursor: pointer; }
+.cursor-grab { cursor: grab; }
+.cursor-grabbing { cursor: grabbing; }
+.cursor-not-allowed { cursor: not-allowed; }
+
+// -----------------------------------------------------------------------------
+// Position helpers
+// -----------------------------------------------------------------------------
+.sticky-top-header {
+    position: sticky;
+    top: 0;
+    z-index: $ps-zindex-sticky;
+    background: white;
+}
+
+// -----------------------------------------------------------------------------
+// Responsive visibility (complément Bootstrap)
+// -----------------------------------------------------------------------------
+.visible-hover {
+    opacity: 0;
+    transition: $ps-transition-fast;
+}
+
+*:hover > .visible-hover {
+    opacity: 1;
+}
+
+
+
+
+

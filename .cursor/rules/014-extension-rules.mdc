@@ -1,0 +1,155 @@
+---
+description: Extension Rules WEDEV - Moteur de règles métier
+globs: ["**/Extension/Rules/**/*.php"]
+alwaysApply: false
+---
+
+# Extension Rules WEDEV
+
+## 🎯 Objectif
+
+Moteur de règles métier pour appliquer des conditions et actions dynamiques.
+
+## 📦 Composants
+
+| Composant | Rôle |
+|-----------|------|
+| `RuleEngine` | Évalue les règles et exécute les actions |
+| `RuleBuilder` | API fluente pour créer des règles |
+| `RuleContext` | Contexte d'évaluation (cart, customer, etc.) |
+| `Condition/*` | Conditions prêtes à l'emploi |
+| `Action/*` | Actions prêtes à l'emploi |
+
+## ✅ Bonnes Pratiques
+
+### Création de Règles
+
+```php
+// ✅ BON: Utiliser le builder
+$rule = RuleBuilder::create('promo_vip')
+    ->when(new CustomerCondition('group', '=', 3))
+    ->and(new CartCondition('total', '>=', 100))
+    ->then(new SetContextAction('discount', 10))
+    ->priority(10)
+    ->build();
+
+// ❌ MAUVAIS: Créer manuellement
+$rule = new Rule('promo', new AndCondition([...]), ...);
+```
+
+### Évaluation
+
+```php
+// ✅ BON: Évaluer plusieurs règles et exécuter la première
+$engine->executeFirst($rules, $context);
+
+// ✅ BON: Vérifier avant d'agir
+$matchedRule = $engine->evaluateFirst($rules, $context);
+if ($matchedRule) {
+    // Logique personnalisée...
+}
+
+// ❌ MAUVAIS: Évaluer une par une manuellement
+foreach ($rules as $rule) {
+    if ($rule->getCondition()->evaluate($context)) { ... }
+}
+```
+
+### Conditions Personnalisées
+
+```php
+// ✅ BON: Étendre AbstractCondition
+final class StockCondition extends AbstractCondition
+{
+    public function __construct(
+        private readonly int $productId,
+        private readonly string $operator,
+        private readonly int $quantity
+    ) {}
+
+    public function evaluate(RuleContext $context): bool
+    {
+        $stock = StockAvailable::getQuantityAvailableByProduct($this->productId);
+        return $this->compare($stock, $this->operator, $this->quantity);
+    }
+}
+```
+
+### Actions Personnalisées
+
+```php
+// ✅ BON: Implémenter ActionInterface
+final class ApplyDiscountAction implements ActionInterface
+{
+    public function __construct(private readonly float $percent) {}
+
+    public function execute(RuleContext $context): void
+    {
+        $cart = $context->getCart();
+        // Appliquer la réduction...
+    }
+}
+```
+
+## 🚫 Anti-patterns
+
+```php
+// ❌ Logique métier dans les conditions
+public function evaluate(RuleContext $context): bool
+{
+    // Ne pas faire de modification ici!
+    $context->getCart()->updateQty(...);
+    return true;
+}
+
+// ❌ Actions avec effets de bord non réversibles
+public function execute(RuleContext $context): void
+{
+    Db::getInstance()->delete('orders', ...);  // Dangereux!
+}
+```
+
+## 📝 Exemple Complet
+
+```php
+class PromotionService
+{
+    private array $rules;
+
+    public function __construct()
+    {
+        $this->rules = [
+            // VIP: 10% si panier > 100€
+            RuleBuilder::create('vip_discount')
+                ->when(new CustomerCondition('group', '=', 3))
+                ->and(new CartCondition('total', '>=', 100))
+                ->then(new SetContextAction('discount_percent', 10))
+                ->priority(20)
+                ->build(),
+
+            // Weekend: 5% pour tous
+            RuleBuilder::create('weekend_promo')
+                ->when(new DateCondition('is_weekend', '=', true))
+                ->then(new SetContextAction('discount_percent', 5))
+                ->priority(10)
+                ->build(),
+
+            // Nouveau client: livraison gratuite
+            RuleBuilder::create('new_customer_shipping')
+                ->when(new CustomerCondition('is_new', '=', true))
+                ->then(new SetContextAction('free_shipping', true))
+                ->priority(5)
+                ->build(),
+        ];
+    }
+
+    public function applyPromotions(): void
+    {
+        $engine = new RuleEngine();
+        $context = RuleContext::fromCurrentCart();
+
+        // Appliquer toutes les règles qui matchent
+        $engine->executeAll($this->rules, $context);
+    }
+}
+```

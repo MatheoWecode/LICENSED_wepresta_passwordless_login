@@ -1,0 +1,351 @@
+/**
+ * Module Starter - Back-office Styles
+ *
+ * Styles admin compatibles avec PrestaShop BO
+ */
+
+// Variables (alignées sur PrestaShop 8)
+$ps-primary: #25b9d7;
+$ps-secondary: #363a41;
+$ps-success: #70b580;
+$ps-warning: #f0ad4e;
+$ps-danger: #d9534f;
+$ps-dark: #232323;
+$ps-light: #f5f5f5;
+$ps-border: #e5e5e5;
+
+// Module configuration page
+.modulestarter-config {
+    max-width: 1000px;
+
+    .panel {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .panel-heading {
+        background: linear-gradient(135deg, $ps-primary, darken($ps-primary, 10%));
+        color: white;
+        border-radius: 8px 8px 0 0;
+        padding: 15px 20px;
+
+        .panel-title {
+            font-weight: 600;
+        }
+    }
+}
+
+// Info cards
+.modulestarter-info-cards {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin-bottom: 30px;
+}
+
+.modulestarter-info-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    border-left: 4px solid $ps-primary;
+
+    &__icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        background: rgba($ps-primary, 0.1);
+        border-radius: 50%;
+        margin-bottom: 15px;
+
+        i {
+            font-size: 24px;
+            color: $ps-primary;
+        }
+    }
+
+    &__title {
+        font-size: 0.85rem;
+        color: $ps-secondary;
+        margin-bottom: 5px;
+    }
+
+    &__value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: $ps-dark;
+    }
+
+    &--success {
+        border-color: $ps-success;
+
+        .modulestarter-info-card__icon {
+            background: rgba($ps-success, 0.1);
+
+            i {
+                color: $ps-success;
+            }
+        }
+    }
+
+    &--warning {
+        border-color: $ps-warning;
+
+        .modulestarter-info-card__icon {
+            background: rgba($ps-warning, 0.1);
+
+            i {
+                color: $ps-warning;
+            }
+        }
+    }
+
+    &--danger {
+        border-color: $ps-danger;
+
+        .modulestarter-info-card__icon {
+            background: rgba($ps-danger, 0.1);
+
+            i {
+                color: $ps-danger;
+            }
+        }
+    }
+}
+
+// Toggle switch custom
+.modulestarter-toggle {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+
+    input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+
+        &:checked + .slider {
+            background-color: $ps-success;
+
+            &::before {
+                transform: translateX(24px);
+            }
+        }
+
+        &:focus + .slider {
+            box-shadow: 0 0 0 3px rgba($ps-success, 0.3);
+        }
+
+        &:disabled + .slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 26px;
+
+        &::before {
+            position: absolute;
+            content: '';
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+    }
+}
+
+// Sortable items
+.modulestarter-sortable {
+    min-height: 100px;
+
+    .sortable-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin-bottom: 10px;
+        background: white;
+        border: 1px solid $ps-border;
+        border-radius: 8px;
+        transition: box-shadow 0.2s;
+
+        &:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        &.ui-sortable-helper {
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+    }
+
+    .sortable-handle {
+        cursor: grab;
+        padding: 10px;
+        margin-right: 15px;
+        color: #999;
+
+        &:active {
+            cursor: grabbing;
+        }
+
+        i {
+            font-size: 18px;
+        }
+    }
+
+    .sortable-placeholder {
+        height: 60px;
+        margin-bottom: 10px;
+        background: rgba($ps-primary, 0.1);
+        border: 2px dashed $ps-primary;
+        border-radius: 8px;
+    }
+}
+
+// Loading states
+.loading {
+    position: relative;
+    pointer-events: none;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+.loading-overlay {
+    &::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 9998;
+    }
+
+    &::after {
+        content: '';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 50px;
+        height: 50px;
+        margin: -25px 0 0 -25px;
+        border: 4px solid $ps-light;
+        border-top-color: $ps-primary;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        z-index: 9999;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+// Status badges
+.modulestarter-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    &--active {
+        background: rgba($ps-success, 0.15);
+        color: darken($ps-success, 20%);
+    }
+
+    &--inactive {
+        background: rgba($ps-danger, 0.15);
+        color: darken($ps-danger, 10%);
+    }
+
+    &--pending {
+        background: rgba($ps-warning, 0.15);
+        color: darken($ps-warning, 20%);
+    }
+}
+
+// Quick actions
+.modulestarter-quick-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.2s;
+
+        i {
+            font-size: 16px;
+        }
+
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+    }
+}
+
+// Documentation link
+.modulestarter-docs {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+
+    &:hover {
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    i {
+        font-size: 18px;
+    }
+}
+

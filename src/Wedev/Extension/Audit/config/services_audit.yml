@@ -1,0 +1,29 @@
+# Extension Audit - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Extension/Audit/config/services_audit.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Repository d'audit
+    Wepresta_Passwordless_Login\Wedev\Extension\Audit\AuditRepository:
+        public: true
+
+    # Logger d'audit
+    Wepresta_Passwordless_Login\Wedev\Extension\Audit\AuditLogger:
+        public: true
+
+    # Alias courts
+    wedev.audit_repository:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Audit\AuditRepository
+        public: true
+
+    wedev.audit_logger:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Audit\AuditLogger
+        public: true
+

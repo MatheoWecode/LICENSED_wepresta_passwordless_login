@@ -1,0 +1,375 @@
+---
+description: Grid Framework PrestaShop - Configuration et bonnes pratiques
+globs: ["src/Presentation/Grid/**/*.php", "config/services.yml"]
+alwaysApply: false
+---
+
+# Grid Framework PrestaShop
+
+## ⚠️ RÈGLE CRITIQUE - Pas d'Auto-Registration
+
+```yaml
+# ❌ NE JAMAIS FAIRE - Cause des erreurs d'autowiring
+ModuleStarter\Presentation\:
+    resource: '../src/Presentation/*'
+    tags: ['controller.service_arguments']
+
+# ✅ TOUJOURS FAIRE - Séparer Controllers et Grids
+ModuleStarter\Presentation\Controller\:
+    resource: '../src/Presentation/Controller/*'
+    tags: ['controller.service_arguments']
+
+# Les Grids sont configurés EXPLICITEMENT (voir ci-dessous)
+```
+
+**Pourquoi ?** Les classes `GridQueryBuilder` ont un paramètre `$dbPrefix: string` que Symfony ne peut pas autowirer automatiquement.
+
+## 📁 Structure des fichiers Grid
+
+```
+src/Presentation/Grid/
+├── MyEntityGridDefinitionFactory.php   # Colonnes, filtres, actions
+└── MyEntityGridQueryBuilder.php        # Requêtes SQL
+```
+
+## 🔧 Configuration services.yml
+
+Pour chaque Grid, **4 services** sont nécessaires :
+
+```yaml
+# config/services.yml
+
+# =========================================================================
+# GRID: MyEntity
+# =========================================================================
+
+# 1. Definition Factory (colonnes, filtres, actions)
+ModuleStarter\Presentation\Grid\MyEntityGridDefinitionFactory:
+    parent: 'prestashop.core.grid.definition.factory.abstract_grid_definition'
+    public: true
+
+# 2. Query Builder (⚠️ paramètres EXPLICITES obligatoires)
+ModuleStarter\Presentation\Grid\MyEntityGridQueryBuilder:
+    arguments:
+        $connection: '@doctrine.dbal.default_connection'
+        $dbPrefix: '%database_prefix%'
+
+# 3. Data Provider
+modulestarter.myentity.grid.data_provider:
+    class: 'PrestaShop\PrestaShop\Core\Grid\Data\Factory\DoctrineGridDataFactory'
+    arguments:
+        $gridQueryBuilder: '@ModuleStarter\Presentation\Grid\MyEntityGridQueryBuilder'
+        $hookDispatcher: '@prestashop.core.hook.dispatcher'
+        $queryParser: '@prestashop.core.grid.query.doctrine_query_parser'
+        $gridId: 'myentity'
+
+# 4. Grid Factory (injecté dans le contrôleur)
+modulestarter.myentity.grid.factory:
+    class: 'PrestaShop\PrestaShop\Core\Grid\GridFactory'
+    arguments:
+        $definitionFactory: '@ModuleStarter\Presentation\Grid\MyEntityGridDefinitionFactory'
+        $dataFactory: '@modulestarter.myentity.grid.data_provider'
+        $filterFormFactory: '@prestashop.core.grid.filter.form_factory'
+        $hookDispatcher: '@prestashop.core.hook.dispatcher'
+```
+
+## 📄 GridDefinitionFactory
+
+```php
+<?php
+// src/Presentation/Grid/MyEntityGridDefinitionFactory.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Grid;
+
+use PrestaShop\PrestaShop\Core\Grid\Action\Bulk\BulkActionCollection;
+use PrestaShop\PrestaShop\Core\Grid\Action\Bulk\Type\SubmitBulkAction;
+use PrestaShop\PrestaShop\Core\Grid\Action\Row\RowActionCollection;
+use PrestaShop\PrestaShop\Core\Grid\Action\Row\Type\LinkRowAction;
+use PrestaShop\PrestaShop\Core\Grid\Action\Row\Type\SubmitRowAction;
+use PrestaShop\PrestaShop\Core\Grid\Column\ColumnCollection;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ActionColumn;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\BulkActionColumn;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ToggleColumn;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn;
+use PrestaShop\PrestaShop\Core\Grid\Definition\Factory\AbstractGridDefinitionFactory;
+use PrestaShop\PrestaShop\Core\Grid\Filter\Filter;
+use PrestaShop\PrestaShop\Core\Grid\Filter\FilterCollection;
+use PrestaShopBundle\Form\Admin\Type\SearchAndResetType;
+use PrestaShopBundle\Form\Admin\Type\YesAndNoChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+
+final class MyEntityGridDefinitionFactory extends AbstractGridDefinitionFactory
+{
+    public const GRID_ID = 'myentity';
+
+    protected function getId(): string
+    {
+        return self::GRID_ID;
+    }
+
+    protected function getName(): string
+    {
+        return $this->trans('My Entities', [], 'Modules.Modulestarter.Admin');
+    }
+
+    protected function getColumns(): ColumnCollection
+    {
+        return (new ColumnCollection())
+            ->add((new BulkActionColumn('bulk'))
+                ->setOptions(['bulk_field' => 'id_myentity'])
+            )
+            ->add((new DataColumn('id_myentity'))
+                ->setName($this->trans('ID', [], 'Admin.Global'))
+                ->setOptions(['field' => 'id_myentity'])
+            )
+            ->add((new DataColumn('name'))
+                ->setName($this->trans('Name', [], 'Admin.Global'))
+                ->setOptions(['field' => 'name'])
+            )
+            ->add((new ToggleColumn('active'))
+                ->setName($this->trans('Active', [], 'Admin.Global'))
+                ->setOptions([
+                    'field' => 'active',
+                    'primary_field' => 'id_myentity',
+                    'route' => 'modulestarter_myentity_toggle',
+                    'route_param_name' => 'entityId',
+                ])
+            )
+            ->add((new ActionColumn('actions'))
+                ->setName($this->trans('Actions', [], 'Admin.Global'))
+                ->setOptions(['actions' => $this->getRowActions()])
+            );
+    }
+
+    protected function getFilters(): FilterCollection
+    {
+        return (new FilterCollection())
+            ->add((new Filter('id_myentity', TextType::class))
+                ->setTypeOptions(['required' => false])
+                ->setAssociatedColumn('id_myentity')
+            )
+            ->add((new Filter('name', TextType::class))
+                ->setTypeOptions(['required' => false])
+                ->setAssociatedColumn('name')
+            )
+            ->add((new Filter('active', YesAndNoChoiceType::class))
+                ->setTypeOptions(['required' => false])
+                ->setAssociatedColumn('active')
+            )
+            ->add((new Filter('actions', SearchAndResetType::class))
+                ->setTypeOptions([
+                    'reset_route' => 'admin_common_reset_search_by_filter_id',
+                    'reset_route_params' => ['filterId' => self::GRID_ID],
+                    'redirect_route' => 'modulestarter_myentity_index',
+                ])
+                ->setAssociatedColumn('actions')
+            );
+    }
+
+    protected function getBulkActions(): BulkActionCollection
+    {
+        return (new BulkActionCollection())
+            ->add((new SubmitBulkAction('enable_selection'))
+                ->setName($this->trans('Enable selection', [], 'Admin.Actions'))
+                ->setOptions(['submit_route' => 'modulestarter_myentity_bulk_enable'])
+            )
+            ->add((new SubmitBulkAction('disable_selection'))
+                ->setName($this->trans('Disable selection', [], 'Admin.Actions'))
+                ->setOptions(['submit_route' => 'modulestarter_myentity_bulk_disable'])
+            )
+            ->add((new SubmitBulkAction('delete_selection'))
+                ->setName($this->trans('Delete selected', [], 'Admin.Actions'))
+                ->setOptions([
+                    'submit_route' => 'modulestarter_myentity_bulk_delete',
+                    'confirm_message' => $this->trans('Delete selected items?', [], 'Admin.Notifications.Warning'),
+                ])
+            );
+    }
+
+    private function getRowActions(): RowActionCollection
+    {
+        return (new RowActionCollection())
+            ->add((new LinkRowAction('edit'))
+                ->setName($this->trans('Edit', [], 'Admin.Actions'))
+                ->setIcon('edit')
+                ->setOptions([
+                    'route' => 'modulestarter_myentity_edit',
+                    'route_param_name' => 'entityId',
+                    'route_param_field' => 'id_myentity',
+                ])
+            )
+            ->add((new SubmitRowAction('delete'))
+                ->setName($this->trans('Delete', [], 'Admin.Actions'))
+                ->setIcon('delete')
+                ->setOptions([
+                    'method' => 'DELETE',
+                    'route' => 'modulestarter_myentity_delete',
+                    'route_param_name' => 'entityId',
+                    'route_param_field' => 'id_myentity',
+                    'confirm_message' => $this->trans('Delete this item?', [], 'Admin.Notifications.Warning'),
+                ])
+            );
+    }
+}
+```
+
+## 📄 GridQueryBuilder
+
+```php
+<?php
+// src/Presentation/Grid/MyEntityGridQueryBuilder.php
+
+declare(strict_types=1);
+
+namespace ModuleStarter\Presentation\Grid;
+
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Query\QueryBuilder;
+use PrestaShop\PrestaShop\Core\Grid\Query\AbstractDoctrineQueryBuilder;
+use PrestaShop\PrestaShop\Core\Grid\Search\SearchCriteriaInterface;
+
+final class MyEntityGridQueryBuilder extends AbstractDoctrineQueryBuilder
+{
+    // ⚠️ Ces paramètres DOIVENT être configurés dans services.yml
+    public function __construct(
+        Connection $connection,
+        string $dbPrefix
+    ) {
+        parent::__construct($connection, $dbPrefix);
+    }
+
+    public function getSearchQueryBuilder(SearchCriteriaInterface $searchCriteria): QueryBuilder
+    {
+        $qb = $this->getBaseQuery();
+        $this->applyFilters($qb, $searchCriteria);
+
+        $qb->select('e.*');
+
+        $orderBy = $searchCriteria->getOrderBy();
+        $orderWay = $searchCriteria->getOrderWay();
+
+        if ($orderBy && $orderWay) {
+            $qb->orderBy('e.' . $orderBy, $orderWay);
+        } else {
+            $qb->orderBy('e.id_myentity', 'DESC');
+        }
+
+        if ($searchCriteria->getOffset() !== null) {
+            $qb->setFirstResult($searchCriteria->getOffset());
+        }
+
+        if ($searchCriteria->getLimit() !== null) {
+            $qb->setMaxResults($searchCriteria->getLimit());
+        }
+
+        return $qb;
+    }
+
+    public function getCountQueryBuilder(SearchCriteriaInterface $searchCriteria): QueryBuilder
+    {
+        $qb = $this->getBaseQuery();
+        $this->applyFilters($qb, $searchCriteria);
+        $qb->select('COUNT(e.id_myentity)');
+
+        return $qb;
+    }
+
+    private function getBaseQuery(): QueryBuilder
+    {
+        return $this->connection->createQueryBuilder()
+            ->from($this->dbPrefix . 'modulestarter_myentity', 'e');
+    }
+
+    private function applyFilters(QueryBuilder $qb, SearchCriteriaInterface $criteria): void
+    {
+        $filters = $criteria->getFilters();
+
+        if (!empty($filters['id_myentity'])) {
+            $qb->andWhere('e.id_myentity = :id')
+                ->setParameter('id', $filters['id_myentity']);
+        }
+
+        if (!empty($filters['name'])) {
+            $qb->andWhere('e.name LIKE :name')
+                ->setParameter('name', '%' . $filters['name'] . '%');
+        }
+
+        if (isset($filters['active']) && $filters['active'] !== '') {
+            $qb->andWhere('e.active = :active')
+                ->setParameter('active', (int) $filters['active']);
+        }
+    }
+}
+```
+
+## 🎯 Utilisation dans le Contrôleur
+
+### ⚠️ PrestaShop 9 - SearchCriteria manuel
+
+La méthode `buildSearchCriteriaFromRequest` **n'existe pas** dans PrestaShop 9.
+Construire les critères manuellement :
+
+```php
+<?php
+// src/Presentation/Controller/Admin/MyEntityController.php
+
+use PrestaShop\PrestaShop\Core\Grid\GridFactoryInterface;
+use PrestaShop\PrestaShop\Core\Grid\Search\SearchCriteria;
+use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class MyEntityController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly MyEntityService $service,
+        private readonly GridFactoryInterface $gridFactory  // Injecté depuis services.yml
+    ) {
+    }
+
+    public function indexAction(Request $request): Response
+    {
+        // ✅ PrestaShop 9: Construire SearchCriteria manuellement
+        $filters = $request->query->all(MyEntityGridDefinitionFactory::GRID_ID) ?: [];
+        $searchCriteria = new SearchCriteria(
+            $filters['filters'] ?? [],
+            $filters['orderBy'] ?? 'id_myentity',  // Colonne par défaut
+            $filters['sortOrder'] ?? 'desc',       // Ordre par défaut
+            (int) ($filters['offset'] ?? 0),
+            (int) ($filters['limit'] ?? 10)
+        );
+        
+        $grid = $this->gridFactory->getGrid($searchCriteria);
+
+        return $this->render('@Modules/modulestarter/views/templates/admin/myentity/index.html.twig', [
+            'grid' => $this->presentGrid($grid),
+            'help_link' => false,
+            'enableSidebar' => true,
+            'layoutTitle' => $this->trans('My Entities', 'Modules.Modulestarter.Admin'),
+        ]);
+    }
+}
+```
+
+### ❌ ERREUR COMMUNE
+
+```php
+// ❌ N'existe PAS dans PrestaShop 9
+$searchCriteria = $this->buildSearchCriteriaFromRequest($request, 'myentity');
+// Error: Attempted to call an undefined method named "buildSearchCriteriaFromRequest"
+
+// ✅ Construire manuellement avec SearchCriteria
+$filters = $request->query->all('myentity') ?: [];
+$searchCriteria = new SearchCriteria(...);
+```
+
+## ✅ Checklist Grid
+
+- [ ] `GridQueryBuilder` configuré EXPLICITEMENT dans services.yml
+- [ ] `$dbPrefix: '%database_prefix%'` présent dans les arguments
+- [ ] `GridDefinitionFactory` avec `parent: 'prestashop.core.grid.definition.factory.abstract_grid_definition'`
+- [ ] Grid NON inclus dans l'auto-registration de Presentation
+- [ ] Routes correspondantes définies dans routes.yml
+- [ ] Template Twig avec `{{ include('@PrestaShop/Admin/Common/Grid/grid.html.twig', {'grid': grid}) }}`

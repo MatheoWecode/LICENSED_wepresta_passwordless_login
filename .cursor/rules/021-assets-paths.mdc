@@ -1,0 +1,229 @@
+---
+description: Chemins des assets - Conformité PrestaShop Addons
+globs: ["webpack.config.js", "_dev/**", "views/**"]
+alwaysApply: true
+---
+
+# Assets Paths - PrestaShop Addons Compliance
+
+## ⚠️ Règle Obligatoire
+
+**Ne JAMAIS compiler les assets dans `/views/dist/`.**
+
+PrestaShop Addons exige que :
+- Les fichiers **JavaScript** soient dans `/views/js/`
+- Les fichiers **CSS** soient dans `/views/css/`
+- Les fichiers **images** soient dans `/views/img/`
+
+## Configuration Webpack Encore
+
+```javascript
+// webpack.config.js - Configuration OBLIGATOIRE
+Encore
+    .setOutputPath('views/js/')                          // JS dans views/js/
+    .setPublicPath('/modules/modulestarter/views/js')
+
+    .configureMiniCssExtractPlugin(
+        (loaderOptions) => {},
+        (pluginOptions) => {
+            pluginOptions.filename = '../css/[name].css'; // CSS dans views/css/
+        }
+    )
+    .copyFiles({
+        from: './_dev/images',
+        to: '../img/[path][name].[hash:8].[ext]',        // Images dans views/img/
+        pattern: /\.(png|jpg|jpeg|gif|ico|svg|webp)$/
+    })
+```
+
+## Structure Attendue
+
+```
+views/
+├── js/
+│   ├── admin.js         ← Webpack output JS
+│   ├── front.js         ← Autres JS
+│   ├── runtime.js       ← Runtime Webpack
+│   ├── admin.abc123.js  ← Versioning (prod)
+│   ├── manifest.json    ← Cache busting
+│   └── index.php        ← Sécurité
+│
+├── css/
+│   ├── admin.css        ← Webpack output CSS
+│   ├── front.css        ← Autres CSS
+│   ├── admin.abc123.css ← Versioning (prod)
+│   └── index.php        ← Sécurité
+│
+├── img/
+│   ├── logo.png
+│   ├── icon.svg
+│   └── [images compilées]
+│
+└── templates/
+    ├── admin/
+    │   └── dashboard.html.twig
+    └── hook/
+        └── home.tpl
+```
+
+## ✅ Webpack Configuration Complète
+
+```javascript
+// webpack.config.js - Template valide
+const Encore = require('@symfony/webpack-encore');
+const path = require('path');
+
+if (!Encore.isRuntimeEnvironmentConfigured()) {
+    Encore.configureRuntimeEnvironment(process.env.NODE_ENV || 'dev');
+}
+
+Encore
+    // ⭐ CRITIQUE: Output JS dans views/js/
+    .setOutputPath('views/js/')
+    .setPublicPath('/modules/modulestarter/views/js')
+    .setManifestKeyPrefix('modulestarter')
+
+    // Entries
+    .addEntry('front', './_dev/js/front.js')
+    .addEntry('admin', './_dev/js/admin.js')
+
+    // Features
+    .splitEntryChunks()
+    .enableSingleRuntimeChunk()
+    .cleanupOutputBeforeBuild()
+    .enableBuildNotifications()
+    .enableSourceMaps(!Encore.isProduction())
+    .enableVersioning(Encore.isProduction())
+
+    // Build configuration
+    .configureBabel((config) => {
+        config.plugins.push('@babel/plugin-proposal-class-properties');
+    })
+    .configureBabelPresetEnv((config) => {
+        config.useBuiltIns = 'usage';
+        config.corejs = '3.36';
+    })
+
+    // ⭐ CRITIQUE: CSS vers views/css/
+    .enableSassLoader()
+    .configureMiniCssExtractPlugin(
+        (loaderOptions) => {},
+        (pluginOptions) => {
+            pluginOptions.filename = '../css/[name].css';
+        }
+    )
+
+    // PostCSS + Autoprefixer
+    .enablePostCssLoader((config) => {
+        config.postcssOptions = {
+            plugins: [require('autoprefixer')],
+        };
+    })
+
+    // ⭐ CRITIQUE: Images vers views/img/
+    .copyFiles({
+        from: './_dev/images',
+        to: '../img/[path][name].[hash:8].[ext]',
+        pattern: /\.(png|jpg|jpeg|gif|ico|svg|webp)$/
+    })
+
+    // Aliases
+    .addAliases({
+        '@': path.resolve(__dirname, '_dev/js'),
+        '@scss': path.resolve(__dirname, '_dev/scss'),
+    });
+
+module.exports = Encore.getWebpackConfig();
+```
+
+## ❌ Ce qui est Interdit
+
+| Non-conforme | Raison |
+|---|---|
+| `/views/dist/` | Non conforme PrestaShop Addons |
+| `/views/build/` | Non conforme PrestaShop Addons |
+| `/assets/` à la racine | Non conforme PrestaShop Addons |
+| `build/`, `dist/` au root | Non conforme |
+| Versioning custom | Utiliser Webpack Encore uniquement |
+
+## 📝 Template Twig - Référencer les Assets
+
+```twig
+{# ✅ CORRECT - Chemins selon la structure #}
+<link rel="stylesheet" href="{{ 'https://your-cdn.com/modules/modulestarter/views/css/admin.css' }}">
+<script src="{{ 'https://your-cdn.com/modules/modulestarter/views/js/admin.js' }}"></script>
+<img src="{{ 'https://your-cdn.com/modules/modulestarter/views/img/logo.png' }}" alt="Logo">
+
+{# ❌ JAMAIS - Ancien path /views/dist/ #}
+<link rel="stylesheet" href="/modules/modulestarter/views/dist/admin.css">
+```
+
+## 📋 Validation Pre-Build
+
+Avant tout build, vérifier que :
+
+```bash
+# ✅ Vérifier la configuration
+cat webpack.config.js | grep -A 2 "setOutputPath"
+# Doit afficher: setOutputPath('views/js/')
+
+cat webpack.config.js | grep -A 2 "configureMiniCssExtractPlugin"
+# Doit afficher: pluginOptions.filename = '../css/[name].css'
+
+cat webpack.config.js | grep -A 2 "copyFiles"
+# Doit afficher: to: '../img/[path][name].[hash:8].[ext]'
+
+# ✅ Après build, vérifier l'arborescence
+ls -la views/js/          # Doit contenir les .js compilés
+ls -la views/css/         # Doit contenir les .css compilés
+ls -la views/img/         # Doit contenir les images
+
+# ❌ Ces dossiers ne doivent PAS exister
+ls -la views/dist/        # ❌ ERREUR si existe
+ls -la views/build/       # ❌ ERREUR si existe
+ls -la assets/            # ❌ ERREUR si existe
+```
+
+## 🔄 Build Process
+
+```bash
+# Development avec watch
+npm run dev
+
+# Production (avec versioning et minification)
+npm run build
+
+# Vérifier les paths générés
+npm run build && cat views/js/manifest.json
+```
+
+## 📌 Checklist Avant Commit
+
+- [ ] `webpack.config.js` utilise `views/js/` comme output
+- [ ] CSS redirigé vers `views/css/` via `configureMiniCssExtractPlugin`
+- [ ] Images copiées vers `views/img/`
+- [ ] Pas de dossier `views/dist/`, `views/build/`, ni `assets/`
+- [ ] `manifest.json` présent dans `views/js/`
+- [ ] Versioning activé en production uniquement
+- [ ] Tous les assets compilés accessibles via PrestaShop
+
+## 🚨 Erreurs Courantes
+
+| Erreur | Cause | Solution |
+|----|----|---|
+| `404 on CSS/JS` | Output path mauvais | Vérifier `setOutputPath()` |
+| `Versioning files not found` | Manifest path incohérent | Vérifier `setManifestKeyPrefix()` |
+| `Assets in views/dist/` | Webpack config obsolète | Utiliser la config template |
+| `Images not compiled` | copyFiles pattern mauvais | Vérifier le `pattern` regex |
+
+## 🎯 PrestaShop Addons Compliance
+
+Cette configuration garantit la conformité avec PrestaShop Addons Marketplace:
+
+```
+✅ Structure validée par PrestaShop
+✅ Chemins standards (js/, css/, img/)
+✅ Aucun dossier non-standard
+✅ Cache busting via manifest.json
+✅ Support versioning production
+```

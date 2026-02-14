@@ -1,0 +1,153 @@
+---
+description: Extension EntityPicker - Sélection d'entités via AJAX
+globs: ["**/EntityPicker/**", "**/Provider/**Provider.php"]
+alwaysApply: false
+---
+
+# Extension EntityPicker
+
+Composant de recherche et sélection d'entités PrestaShop.
+
+## Installation
+
+```yaml
+# config/services.yml
+imports:
+    - { resource: '../src/Wedev/Extension/EntityPicker/config/services_entitypicker.yml' }
+```
+
+## Providers Disponibles
+
+| Provider | Type | Recherche |
+|----------|------|-----------|
+| `ProductProvider` | product | nom, référence, ID |
+| `CategoryProvider` | category | nom, ID |
+| `CustomerProvider` | customer | nom, email, société |
+
+## Implémentation Controller
+
+```php
+use ModuleStarter\Wedev\Extension\EntityPicker\Controller\EntitySearchTrait;
+use ModuleStarter\Wedev\Extension\EntityPicker\Provider\ProductProvider;
+
+class MyController extends FrameworkBundleAdminController
+{
+    use EntitySearchTrait;
+
+    public function __construct(
+        private readonly ProductProvider $productProvider
+    ) {}
+
+    public function searchAction(Request $request): JsonResponse
+    {
+        return $this->handleEntitySearch($request, $this->productProvider);
+    }
+
+    public function fetchAction(Request $request): JsonResponse
+    {
+        return $this->handleEntityFetch($request, $this->productProvider);
+    }
+}
+```
+
+## Routes
+
+```yaml
+my_module_search_products:
+    path: /my-module/ajax/search-products
+    methods: [GET]
+    defaults:
+        _controller: 'MyModule\Controller\MyController::searchAction'
+
+my_module_fetch_products:
+    path: /my-module/ajax/fetch-products
+    methods: [POST]
+    defaults:
+        _controller: 'MyModule\Controller\MyController::fetchAction'
+```
+
+## Template Twig
+
+```twig
+{% import '@WedevEntityPicker/admin/_entity_picker.html.twig' as picker %}
+
+{{ picker.render({
+    name: 'product_ids',
+    label: 'Produits',
+    search_url: path('my_module_search_products'),
+    fetch_url: path('my_module_fetch_products'),
+    multiple: true,
+    value: existingIds,
+}) }}
+
+{{ picker.assets() }}
+```
+
+## Créer un Provider Custom
+
+```php
+final class ManufacturerProvider extends AbstractEntityProvider
+{
+    public function getEntityType(): string
+    {
+        return 'manufacturer';
+    }
+
+    public function getEntityLabel(): string
+    {
+        return 'Fabricants';
+    }
+
+    public function search(string $term, int $limit = 20): array
+    {
+        $query = new DbQuery();
+        $query->select('m.`id_manufacturer`, m.`name`')
+            ->from('manufacturer', 'm')
+            ->where($this->buildSearchWhere($term, ['m.`name`']))
+            ->limit($limit);
+
+        $rows = $this->db->executeS($query);
+        // ...formatResult()
+    }
+
+    public function getByIds(array $ids): array
+    {
+        // Similaire avec WHERE IN
+    }
+}
+```
+
+## JavaScript API
+
+```javascript
+// Événement de changement
+picker.addEventListener('entitypicker:change', (e) => {
+    console.log(e.detail.ids);       // [1, 2, 3]
+    console.log(e.detail.entities);  // [{id, name, image}, ...]
+});
+
+// Méthodes
+WedevEntityPicker.getSelectedIds(container);
+WedevEntityPicker.clear(container);
+```
+
+## Avec AbstractRepository
+
+```php
+// Attacher des produits
+$this->attachMany('label_product', 'id_product', $labelId, $productIds);
+
+// Récupérer les IDs
+$productIds = $this->getAttachedIds('label_product', 'id_product', $labelId);
+
+// Synchroniser
+$this->syncAttached('label_product', 'id_product', $labelId, $newProductIds);
+```
+
+## Checklist
+
+- [ ] Import services_entitypicker.yml
+- [ ] Routes search + fetch
+- [ ] Controller avec EntitySearchTrait
+- [ ] Template avec macro ou HTML data-*
+- [ ] Copier entity-picker.js dans views/js/

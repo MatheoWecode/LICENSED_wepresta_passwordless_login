@@ -1,0 +1,202 @@
+---
+description: Extension HTTP WEDEV - Client HTTP unifié
+globs: ["**/Extension/Http/**/*.php"]
+alwaysApply: false
+---
+
+# Extension HTTP WEDEV
+
+## 🎯 Objectif
+
+Client HTTP léger et typé pour les modules PrestaShop, sans dépendance externe (pas de Guzzle).
+
+## 📦 Composants
+
+| Fichier | Rôle |
+|---------|------|
+| `HttpClient` | Client principal avec fluent API |
+| `HttpResponse` | Réponse typée avec helpers |
+| `HttpException` | Exceptions HTTP typées |
+| `RetryStrategy` | Backoff exponentiel |
+| `RateLimitHandler` | Rate limiting côté client |
+| `Auth/*` | Stratégies d'authentification |
+
+## ✅ Bonnes Pratiques
+
+### Utilisation du Client
+
+```php
+// ✅ BON: Fluent API, réutilisable
+$client = (new HttpClient())
+    ->withAuth(new BearerAuth($apiKey))
+    ->withRetry(3)
+    ->withTimeout(60);
+
+$response = $client->postJson($url, $data);
+
+// ❌ MAUVAIS: Recréer le client à chaque fois
+$response = (new HttpClient())
+    ->withAuth(new BearerAuth($apiKey))
+    ->postJson($url, $data);
+```
+
+### Gestion des Réponses
+
+```php
+// ✅ BON: Vérifier le succès avant de parser
+$response = $client->get($url);
+if ($response->isSuccess()) {
+    $data = $response->json();
+}
+
+// ✅ BON: Utiliser throw() pour simplifier
+try {
+    $data = $client->get($url)->throw()->json();
+} catch (HttpException $e) {
+    // Gérer l'erreur
+}
+
+// ❌ MAUVAIS: Accéder au JSON sans vérification
+$data = $client->get($url)->json(); // Peut échouer si erreur
+```
+
+### Authentification
+
+```php
+// ✅ BON: Stocker les credentials dans Configuration
+$apiKey = $this->config->get('MYMODULE_API_KEY');
+$auth = new BearerAuth($apiKey);
+
+// ❌ MAUVAIS: Credentials en dur
+$auth = new BearerAuth('sk_live_xxxx');
+```
+
+### Retry
+
+```php
+// ✅ BON: Retry avec backoff pour APIs externes
+$client->withRetry(3)->get('https://api.openai.com/...');
+
+// ❌ MAUVAIS: Retry excessif
+$client->withRetry(10)->get($url); // Trop de retries
+```
+
+### Rate Limiting
+
+```php
+// ✅ BON: Respecter les limites d'API
+$client = (new HttpClient())
+    ->withRateLimit(10, 1);  // 10 req/s pour OpenAI
+
+// ✅ BON: Lire les headers de rate limit
+$remaining = $response->getHeader('x-rate-limit-remaining');
+if ((int) $remaining < 10) {
+    sleep(1);
+}
+```
+
+## 🔒 Sécurité
+
+### Ne JAMAIS
+
+```php
+// ❌ Logger les credentials
+$this->log('debug', 'API Key: ' . $apiKey);
+
+// ❌ Exposer les tokens dans les URLs
+$client->get("https://api.com/?token={$token}");
+
+// ❌ Ignorer les erreurs SSL (pas supporté par design)
+```
+
+### Toujours
+
+```php
+// ✅ Utiliser les headers pour les credentials
+$client->withAuth(new BearerAuth($token));
+
+// ✅ Valider les réponses
+if (!$response->isJson()) {
+    throw HttpException::invalidResponse('Expected JSON');
+}
+
+// ✅ Gérer les erreurs spécifiquement
+try {
+    $response = $client->get($url);
+} catch (HttpException $e) {
+    if ($e->isRateLimit()) {
+        // Attendre et réessayer
+    } elseif ($e->isTimeout()) {
+        // API lente, notifier l'admin
+    }
+}
+```
+
+## 📝 Exemples par API
+
+### OpenAI
+
+```php
+$client = (new HttpClient())
+    ->withAuth(new BearerAuth($_ENV['OPENAI_API_KEY']))
+    ->withTimeout(120)
+    ->withRetry(3)
+    ->withRateLimit(60, 60);
+
+$response = $client->postJson(
+    'https://api.openai.com/v1/chat/completions',
+    [
+        'model' => 'gpt-4',
+        'messages' => [
+            ['role' => 'user', 'content' => 'Hello!']
+        ]
+    ]
+);
+```
+
+### Stripe
+
+```php
+$client = (new HttpClient())
+    ->withAuth(new BearerAuth($_ENV['STRIPE_SECRET']))
+    ->withRetry(3);
+
+$response = $client->post(
+    'https://api.stripe.com/v1/charges',
+    ['amount' => 1000, 'currency' => 'eur']
+);
+```
+
+### OAuth2 Service
+
+```php
+$auth = new OAuth2Auth(
+    clientId: $config->get('CLIENT_ID'),
+    clientSecret: $config->get('CLIENT_SECRET'),
+    tokenUrl: 'https://auth.service.com/oauth/token',
+    scopes: ['read', 'write']
+);
+
+$client = (new HttpClient())->withAuth($auth);
+// Le token est géré automatiquement
+```
+
+## 🧪 Tests
+
+```php
+// Mocker le HttpClient pour les tests
+class FakeHttpClient extends HttpClient
+{
+    private array $responses = [];
+
+    public function addResponse(string $url, HttpResponse $response): void
+    {
+        $this->responses[$url] = $response;
+    }
+
+    protected function doRequest(...): HttpResponse
+    {
+        return $this->responses[$url] ?? new HttpResponse(404, '');
+    }
+}
+```

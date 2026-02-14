@@ -1,0 +1,577 @@
+---
+description: Pièges courants et leçons apprises - Erreurs fréquentes à éviter
+globs: ["**/*.php", "**/*.scss", "**/*.vue", "**/*.ts", "config/*.yml"]
+alwaysApply: true
+---
+
+# Pièges Courants et Leçons Apprises
+
+## ⚠️ RÈGLES CRITIQUES
+
+Ce document contient les erreurs fréquemment rencontrées et leurs solutions.
+**Lire obligatoirement avant tout développement.**
+
+---
+
+## 🔧 Installation du Module (CRITIQUE)
+
+### ABSOLUMENT utiliser ModuleInstaller
+
+**NE JAMAIS implémenter l'installation directement dans `install()`.** **Toujours utiliser `ModuleInstaller`** qui orchestre tous les sous-installateurs (database, tabs, hooks, configurations).
+
+```php
+// ❌ ERREUR - Installation directe dans install()
+class ModuleStarter extends Module
+{
+    public function install(): bool
+    {
+        // ❌ NE PAS FAIRE - Code d'installation éparpillé
+        if (!parent::install()) {
+            return false;
+        }
+
+        // ❌ Base de données éparpillée
+        Db::getInstance()->execute("CREATE TABLE ...");
+
+        // ❌ Onglets éparpillés
+        $tab = new Tab();
+        $tab->save();
+
+        // ❌ Hooks éparpillés
+        $this->registerHook('displayHome');
+
+        return true;
+    }
+}
+
+// ✅ SOLUTION - Utiliser ModuleInstaller exclusivement
+class ModuleStarter extends Module
+{
+    public function install(): bool
+    {
+        try {
+            $installer = new ModuleInstaller($this);
+
+            // Install module base
+            if (!parent::install()) {
+                return false;
+            }
+
+            // Run main installer (database, configs, etc.)
+            return $installer->install();
+        } catch (\Exception $e) {
+            PrestaShopLogger::addLog(
+                "Module installation failed: " . $e->getMessage(),
+                3,
+                null,
+                $this->name
+            );
+            return false;
+        }
+    }
+}
+```
+
+**Pourquoi cette règle est CRITIQUE ?**
+- **Centralisation** : Toute la logique d'installation dans un seul endroit
+- **Testabilité** : `ModuleInstaller` peut être testé unitairement
+- **Maintenance** : Configuration déclarative dans `services.yml`
+- **Robustesse** : Gestion d'erreurs centralisée avec logs
+- **Évolutivité** : Ajout de nouveaux installateurs sans modifier le module principal
+
+**Configuration dans `services.yml` :**
+```yaml
+# ⚠️ CRITIQUE - ModuleInstaller doit être configuré ici
+ModuleStarter\Application\Installer\ModuleInstaller:
+    arguments:
+        $configuration:
+            database: '@ModuleStarter\Application\Installer\DatabaseInstaller'
+            configurations: '@ModuleStarter\Application\Installer\ConfigurationInstaller'
+            tabs: '@ModuleStarter\Application\Installer\TabInstaller'
+            hooks: '@ModuleStarter\Application\Installer\HookInstaller'
+```
+
+**Règle absolue :**
+- ✅ `install()` → `new ModuleInstaller($this)` → `$installer->install()`
+- ✅ Configuration déclarative dans `services.yml`
+- ✅ Gestion d'erreurs avec `try/catch` et logs
+- ❌ Jamais de code d'installation directement dans `install()`
+- ❌ Jamais d'accès direct à `Db`, `Tab`, etc. dans le module principal
+
+**Checklist installation :**
+- [ ] Méthode `install()` utilise uniquement `ModuleInstaller`
+- [ ] Configuration dans `services.yml` déclarée
+- [ ] Cache Symfony vidé après installation
+- [ ] Gestion d'erreurs avec logs PrestaShopLogger
+- [ ] Tests unitaires pour `ModuleInstaller`
+
+---
+## 🎨 Frontend & Styles
+
+### TOUJOURS utiliser SCSS, jamais CSS
+
+```
+❌ NE JAMAIS créer de fichiers .css directement
+   views/css/admin.css  ← INTERDIT
+
+✅ TOUJOURS créer les styles en SCSS
+   _dev/scss/admin.scss  ← CORRECT
+   → Compilé vers views/css/admin.css via Webpack
+```
+
+**Structure des sources et outputs:**
+```
+_dev/                          # ← SOURCES (modifier ici)
+├── scss/
+│   ├── admin.scss
+│   ├── front.scss
+│   ├── _variables.scss
+│   └── _mixins.scss
+└── js/
+    ├── admin.js
+    └── front.js
+
+views/dist/                    # ← BUILD (généré par Webpack Encore)
+├── admin.css                  # Compilé depuis _dev/scss/admin.scss
+├── admin.js                   # Compilé depuis _dev/js/admin.js
+├── front.css                  # Compilé depuis _dev/scss/front.scss
+├── front.js                   # Compilé depuis _dev/js/front.js
+└── manifest.json
+
+⚠️ NE JAMAIS créer views/css/ ou views/js/ - c'est views/dist/ !
+```
+
+### Build des assets obligatoire
+
+Après toute modification des sources `_dev/`:
+
+```bash
+npm run build          # Production
+npm run dev            # Développement avec watch
+```
+
+---
+
+## 🔧 Contrôleurs API (CRITIQUE)
+
+### Conflits de noms de méthodes
+
+`FrameworkBundleAdminController` définit une méthode `get()` pour accéder aux services du container. **NE JAMAIS créer de méthode `get()` dans un contrôleur API.**
+
+```php
+// ❌ ERREUR - Conflit avec FrameworkBundleAdminController::get()
+class ValueApiController extends FrameworkBundleAdminController
+{
+    public function get(int $id): JsonResponse  // COMPILE ERROR!
+    {
+        // ...
+    }
+}
+
+// ✅ SOLUTION - Utiliser un nom différent
+class ValueApiController extends FrameworkBundleAdminController
+{
+    public function show(int $id): JsonResponse  // ← Renommer en 'show'
+    {
+        // ...
+    }
+}
+```
+
+**Noms à éviter dans les contrôleurs Symfony:**
+| Méthode réservée | Alternative |
+|----|----|
+| `get()` | `show()`, `read()`, `fetch()` |
+| `has()` | `exists()`, `check()` |
+| `container()` | Autre nom |
+
+---
+
+## 📦 Services Symfony (services.yml)
+
+### Import des routes avec options explicites
+
+**PrestaShop 8** peut avoir des difficultés à charger automatiquement `routes.yml`. **Importer explicitement** avec les bonnes options.
+
+```yaml
+# Module Starter - Services Symfony
+# Documentation: https://devdocs.prestashop.com/8/modules/concepts/services/
+
+# PrestaShop 8 - Import des routes (CRITIQUE pour PS8)
+imports:
+    - { resource: routes.yml, type: yaml, ignore_errors: true }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+```
+
+**Options importantes :**
+- `type: yaml` - Spécifie explicitement le format
+- `ignore_errors: true` - Ignore les erreurs de chargement en développement
+
+### Toute définition de service doit avoir une classe existante
+
+```yaml
+# ❌ ERREUR - La classe n'existe pas (ou mauvais namespace)
+MonModule\Application\Form\ConfigurationType:
+    parent: 'form.type.translatable.aware'
+# Error: "has a parent but no class"
+
+# ✅ SOLUTION - Vérifier que le fichier existe avec le bon namespace
+# Fichier: src/Application/Form/ConfigurationType.php
+# Namespace: MonModule\Application\Form
+```
+
+### Emplacement des Adapters
+
+Les Adapters personnalisés doivent être dans `Infrastructure/Adapter/`, pas dans `Wedev/Core/Adapter/`:
+
+```yaml
+# ❌ ERREUR - Le Wedev/Core est réservé au framework
+MonModule\Wedev\Core\Adapter\ConfigurationAdapter:
+    # ...
+
+# ✅ SOLUTION - Placer dans Infrastructure
+MonModule\Infrastructure\Adapter\ConfigurationAdapter:
+    # ...
+```
+
+**Structure correcte:**
+```
+src/
+├── Wedev/Core/Adapter/          # ❌ NE PAS MODIFIER - Framework WEDEV
+└── Infrastructure/Adapter/      # ✅ VOS adapters personnalisés
+    └── ConfigurationAdapter.php
+```
+
+---
+
+## 🖥️ Vue.js / TypeScript
+
+### Cohérence du nom de la variable globale
+
+Choisir UN nom pour la configuration globale et l'utiliser partout:
+
+```typescript
+// ❌ INCOHÉRENT - Mélange de noms
+window.acfpsConfig.apiUrl    // Dans un fichier
+window.acfConfig.apiUrl      // Dans un autre fichier
+
+// ✅ COHÉRENT - Un seul nom partout
+// Définir dans le template Twig:
+window.moduleConfig = { ... };
+
+// Utiliser partout dans Vue:
+const config = window.moduleConfig;
+```
+
+**Checklist après renommage d'un module:**
+- [ ] `window.xxxConfig` dans le template Twig
+- [ ] `window.xxxConfig` dans les stores Pinia/Vuex
+- [ ] `window.xxxConfig` dans les composables
+- [ ] `window.xxxConfig` dans les types TypeScript
+
+### Scoped Vue styles vs Global SCSS
+
+```
+❌ ERREUR - Styles dupliqués dans les composants Vue scoped
+   <style scoped>
+   .ps-switch { ... }  ← Override les styles globaux!
+   </style>
+
+✅ CORRECT - Utiliser les classes globales de _dev/scss/
+   <style scoped>
+   /* Styles spécifiques au composant uniquement */
+   .my-component-specific { ... }
+   </style>
+```
+
+**Règle:** Ne JAMAIS redéfinir dans `<style scoped>` des classes qui existent dans `_dev/scss/` (`.ps-switch`, `.form-group`, `.btn`, etc.)
+
+### Rebuild après modification
+
+```bash
+# ⚠️ DEUX BUILDS séparés si module avec Vue.js admin!
+
+# Méthode 1: Commandes combinées (depuis la racine du module)
+npm run build:all       # Build Encore + Vue.js
+npm run watch:all       # Watch les deux en parallèle
+
+# Méthode 2: Séparément
+npm run build           # Encore uniquement (_dev/ → views/dist/)
+npm run vue:build       # Vue.js uniquement (views/js/admin/)
+
+# Installer les dépendances des deux systèmes
+npm install             # Installe root + Vue.js (via postinstall)
+```
+
+### Assets dans les mauvais dossiers
+
+```
+❌ ERREUR - Mauvais chemins dans le template Twig:
+   /modules/xxx/views/css/admin.css     ← N'existe pas!
+   /modules/xxx/views/js/admin.js       ← N'existe pas!
+
+✅ CORRECT - Chemins vers les builds:
+   /modules/xxx/views/dist/admin.css    ← Encore build
+   /modules/xxx/views/dist/admin.js     ← Encore build
+   /modules/xxx/views/js/admin/dist/acf-main.css  ← Vue.js build
+   /modules/xxx/views/js/admin/dist/acf-admin.js  ← Vue.js build
+```
+
+---
+
+## 🗄️ Base de Données
+
+### NULL et Foreign Keys
+
+Insérer `NULL` explicitement dans une colonne avec `DEFAULT NULL` peut causer des erreurs avec les contraintes de clé étrangère.
+
+```php
+// ❌ ERREUR - Insertion explicite de NULL
+$data = [
+    'id_parent' => null,  // Peut échouer avec FK constraint
+    // ...
+];
+Db::getInstance()->insert($table, $data);
+
+// ✅ SOLUTION - Omettre la colonne pour DEFAULT NULL
+$data = [
+    // 'id_parent' => null,  // NE PAS inclure
+    // ...
+];
+// La colonne prendra sa valeur DEFAULT NULL automatiquement
+```
+
+### NULL dans les contraintes UNIQUE
+
+MySQL ne considère PAS `NULL = NULL` dans les contraintes UNIQUE. Plusieurs lignes avec `NULL` peuvent exister.
+
+```php
+// Contrainte: UNIQUE(id_field, id_product, id_shop, id_lang)
+// Avec id_lang = NULL (champ non traduisible)
+
+// ❌ PROBLÈME - Plusieurs valeurs NULL autorisées
+INSERT (field_1, product_1, shop_1, NULL)  // OK
+INSERT (field_1, product_1, shop_1, NULL)  // OK aussi! (pas de violation)
+
+// ✅ SOLUTION - DELETE avant INSERT pour les champs NULL
+if ($langId === null) {
+    // Supprimer l'ancienne valeur avant d'insérer
+    Db::getInstance()->delete($table, $where);
+}
+Db::getInstance()->insert($table, $data);
+```
+
+### json_decode() et valeurs NULL
+
+```php
+// ❌ ERREUR - json_decode() sur NULL
+$value = $row['json_column'];  // Peut être NULL
+$decoded = json_decode($value, true);  // TypeError si NULL
+
+// ✅ SOLUTION - Vérifier avant de décoder
+$value = $row['json_column'];
+$decoded = $value !== null ? json_decode($value, true) : [];
+```
+
+---
+
+## 🏪 PrestaShop Context (CRITIQUE)
+
+### Service locator limité en PrestaShop 8
+
+**PrestaShop 8** utilise un service locator limité dans `FrameworkBundleAdminController` qui ne contient que certains services de base. **NE JAMAIS** accéder à `Context::getContext()` directement dans les contrôleurs Symfony.
+
+```php
+// ❌ ERREUR - Fonctionne en PS9 mais PAS en PS8
+class DashboardController extends FrameworkBundleAdminController
+{
+    public function index(Request $request): Response
+    {
+        $idShop = Context::getContext()->shop->id;  // ERREUR EN PS8!
+        $link = Context::getContext()->link;         // ERREUR EN PS8!
+        // ...
+    }
+}
+
+// ✅ SOLUTION - Utiliser ContextAdapter du framework WEDEV
+class DashboardController extends FrameworkBundleAdminController
+{
+    public function __construct(
+        private readonly ContextAdapter $contextAdapter
+    ) {}
+
+    public function index(Request $request): Response
+    {
+        $idShop = $this->contextAdapter->getShopId();     // ✅ Compatible PS8+PS9
+        $link = $this->contextAdapter->getLink();          // ✅ Compatible PS8+PS9
+        // ...
+    }
+}
+```
+
+**Pourquoi ça arrive ?**
+- PS8: `FrameworkBundleAdminController` utilise un service locator limité
+- PS9: Service locator plus permissif
+- Solution: Injection de dépendances avec `ContextAdapter`
+
+**Configuration services.yml:**
+```yaml
+# Déclarer le ContextAdapter
+MonModule\Wedev\Core\Adapter\ContextAdapter:
+    public: true
+
+# Injecter dans les contrôleurs
+MonModule\Presentation\Controller\Admin\DashboardController:
+    arguments:
+        $contextAdapter: '@MonModule\Wedev\Core\Adapter\ContextAdapter'
+    tags: ['controller.service_arguments']
+
+# Injecter dans les services
+MonModule\Application\Service\MyService:
+    arguments:
+        $contextAdapter: '@MonModule\Wedev\Core\Adapter\ContextAdapter'
+```
+
+**Méthodes ContextAdapter disponibles:**
+```php
+$this->contextAdapter->getShopId();        // ID boutique
+$this->contextAdapter->getShop();          // Objet Shop
+$this->contextAdapter->getLanguageId();    // ID langue
+$this->contextAdapter->getLanguage();      // Objet Language
+$this->contextAdapter->getLink();          // Objet Link
+$this->contextAdapter->getContext();       // Objet Context complet
+```
+
+**Règle absolue:**
+- ✅ Controllers Symfony → `ContextAdapter` injecté
+- ✅ Services applicatifs → `ContextAdapter` injecté
+- ✅ Controllers legacy → `Context::getContext()` autorisé
+- ❌ Jamais `Context::getContext()` dans controllers Symfony
+
+**Checklist:**
+- [ ] Tous les contrôleurs Symfony injectent `ContextAdapter`
+- [ ] Services.yml déclare le `ContextAdapter`
+- [ ] Plus d'accès direct à `Context::getContext()` dans les contrôleurs Symfony
+
+
+## 🧮 Division par zéro (CRITIQUE)
+
+### Cast des valeurs avant division
+
+Les valeurs récupérées de la base de données peuvent être `null`, des chaînes vides, ou des valeurs inattendues. **Toujours caster explicitement** avant les divisions.
+
+```php
+// ❌ ERREUR - Division par zéro possible
+$result = $db->getRow($sql);
+if ($result['total'] === 0) {
+    return 100;
+}
+return (int) round(($result['ok_count'] / $result['total']) * 100);
+
+// ✅ SOLUTION - Cast et vérifications strictes
+$result = $db->getRow($sql);
+if (! $result || !isset($result['total']) || (int) $result['total'] === 0) {
+    return 100;
+}
+return (int) round(((int) $result['ok_count'] / (int) $result['total']) * 100);
+```
+
+**Pourquoi ça arrive ?**
+- `$result['total']` peut être `null`, `'0'`, ou chaîne vide
+- `=== 0` ne capture pas tous les cas de "valeur nulle"
+- Les valeurs de DB sont souvent des chaînes, pas des entiers
+
+**Checklist:**
+- [ ] Toujours caster avec `(int)` avant division
+- [ ] Vérifier `isset()` avant accès aux clés
+- [ ] Tester avec base vide (pas de données)
+
+---
+
+## 📋 Checklist Développement
+
+### Avant de coder
+- [ ] Lire les règles `.cursor/rules/` du module
+- [ ] Vérifier la structure des fichiers existants
+- [ ] Identifier les namespaces utilisés
+
+### Pendant le développement
+- [ ] Styles en SCSS dans `_dev/scss/`, pas en CSS
+- [ ] Pas de méthode `get()` dans les contrôleurs API
+- [ ] Services dans `services.yml` → classes existantes
+- [ ] Adapters dans `Infrastructure/Adapter/`, pas dans `Wedev/Core/`
+- [ ] Variable globale JS cohérente partout
+
+### Avant de tester
+- [ ] `npm run build` pour les assets SCSS/JS
+- [ ] `cd views/js/admin && npm run build` pour Vue.js
+- [ ] Vider le cache PrestaShop (`rm -rf var/cache/*`)
+
+### Avant de commit
+- [ ] `composer cs-check` passe
+- [ ] `composer phpstan` passe
+- [ ] Pas de fichiers `.css` dans `views/css/` (sauf compilés)
+- [ ] Pas de `window.oldModuleName` restants dans le code JS
+
+---
+
+## 🔍 Messages d'erreur courants
+
+| Erreur | Cause | Solution |
+|-----|----|----|
+| `Declaration must be compatible with FrameworkBundleAdminController::get()` | Méthode `get()` en conflit | Renommer en `show()` |
+| `has a parent but no class` | Service sans classe existante | Créer la classe ou supprimer le service |
+| `class does not exist` | Mauvais namespace dans services.yml | Vérifier le chemin du fichier PHP |
+| 404 sur les assets JS/CSS | Assets non compilés | Exécuter `npm run build` |
+| Interface Vue vide / cassée | Variable globale mal nommée | Vérifier cohérence `window.xxxConfig` |
+| `Syntax Error` sur `?.` (optional chaining) | Babel ne supporte pas ES2020+ par défaut | Éviter `?.` ou configurer Babel (voir ci-dessous) |
+| `Deprecation The legacy JS API is deprecated` (Sass) | sass-loader utilise l'ancienne API | Configurer sass-loader avec `api: 'modern'` |
+| `Install file-loader to use copyFiles()` | Dépendance manquante | `npm install file-loader@^6.0.0 --save-dev` |
+
+---
+
+## 🛠️ Webpack Encore - Erreurs courantes
+
+### Optional Chaining (`?.`) non supporté
+
+Babel avec Encore ne supporte pas `?.` et `??` par défaut. **Éviter ces syntaxes:**
+
+```javascript
+// ❌ ERREUR - Optional chaining non supporté
+element.querySelector('.title')?.textContent = item.title;
+const items = data?.items?.length || 0;
+
+// ✅ SOLUTION - Syntaxe traditionnelle
+const titleEl = element.querySelector('.title');
+if (titleEl) {
+    titleEl.textContent = item.title;
+}
+const items = (data && data.items && data.items.length) || 0;
+```
+
+**Alternative:** Configurer Babel pour ES2020+:
+
+```javascript
+// webpack.config.js
+.configureBabel((config) => {
+    config.plugins.push('@babel/plugin-proposal-optional-chaining');
+    config.plugins.push('@babel/plugin-proposal-nullish-coalescing-operator');
+})
+```
+
+### Sass Legacy API Deprecation
+
+Warning: `Deprecation The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0`
+
+```javascript
+// webpack.config.js - Configurer sass-loader avec l'API moderne
+.enableSassLoader((options) => {
+    options.sassOptions = {
+        api: 'modern',
+    };
+})

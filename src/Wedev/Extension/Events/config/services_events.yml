@@ -1,0 +1,16 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Domain Event Dispatcher
+    # Register as public to allow access from module main class
+    Wepresta_Passwordless_Login\Wedev\Extension\Events\DomainEventDispatcher:
+        public: true
+        
+    # Alias for easier access
+    wedev.events.dispatcher:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\Events\DomainEventDispatcher
+        public: true
+

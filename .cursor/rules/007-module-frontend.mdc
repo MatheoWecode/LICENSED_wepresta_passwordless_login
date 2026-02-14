@@ -1,0 +1,859 @@
+---
+description: Assets frontend - JavaScript ES6+, SCSS, Webpack
+globs: ["_dev/**/*.js", "_dev/**/*.scss", "views/**/*.tpl", "views/**/*.twig", "webpack.config.js"]
+alwaysApply: false
+---
+
+# Frontend & Assets
+
+## ⚠️ RÈGLE CRITIQUE - SCSS Obligatoire
+
+```
+❌ NE JAMAIS créer de fichiers .css/.js directement
+   views/css/admin.css   ← N'EXISTE PAS
+   views/js/admin.js     ← N'EXISTE PAS
+
+✅ TOUJOURS créer les styles/JS dans _dev/
+   _dev/scss/admin.scss  → Compilé vers views/dist/admin.css
+   _dev/js/admin.js      → Compilé vers views/dist/admin.js
+
+⚠️ Le dossier de sortie est views/dist/, PAS views/css/ ni views/js/
+```
+
+## 📁 Structure des Sources
+
+```
+_dev/
+├── js/
+│   ├── front.js           # Point d'entrée front-office
+│   ├── admin.js           # Point d'entrée back-office
+│   ├── components/        # Composants réutilisables
+│   │   ├── modal.js
+│   │   └── carousel.js
+│   └── utils/             # Utilitaires
+│       ├── ajax.js
+│       └── validation.js
+├── scss/
+│   ├── front.scss         # Styles front-office
+│   ├── admin.scss         # Styles back-office
+│   ├── _variables.scss    # Variables SCSS
+│   ├── _mixins.scss       # Mixins
+│   └── components/        # Styles par composant
+│       ├── _modal.scss
+│       └── _carousel.scss
+└── images/                # Images sources
+    └── icons/
+
+views/
+├── dist/                  # ⚠️ Build Encore (_dev/ → ici)
+│   ├── admin.css
+│   ├── admin.js
+│   ├── front.css
+│   └── front.js
+├── js/
+│   └── admin/             # 🖥️ Vue.js Admin Builder (optionnel)
+│       ├── src/           # Sources Vue/TS
+│       ├── dist/          # Build Vite (acf-admin.js, acf-main.css)
+│       └── package.json   # Dépendances Vue
+└── templates/
+    ├── admin/             # Templates Twig (back-office)
+    ├── front/             # Templates Smarty (front-office)
+    └── hook/              # Templates des hooks
+```
+
+## ⚠️ Dual Build System (si Vue.js Admin)
+
+Modules avec interface Vue.js admin ont **deux systèmes de build**:
+
+| Système | Source | Output | Commande |
+|---|----|----|----|
+| Webpack Encore | `_dev/` | `views/dist/` | `npm run build` |
+| Vite (Vue.js) | `views/js/admin/src/` | `views/js/admin/dist/` | `npm run vue:build` |
+
+### Scripts combinés
+
+```bash
+# Installer toutes les dépendances (root + Vue.js)
+npm install
+
+# Build tout (production)
+npm run build:all
+
+# Watch tout (développement)
+npm run watch:all
+
+# Vue.js uniquement
+npm run vue:build
+npm run vue:watch
+```
+
+### Template Twig - Charger les deux CSS
+
+```twig
+{% block stylesheets %}
+    {{ parent() }}
+    {# Encore build #}
+    <link rel="stylesheet" href="/modules/modulestarter/views/dist/admin.css">
+    {# Vue.js build (si présent) #}
+    <link rel="stylesheet" href="/modules/modulestarter/views/js/admin/dist/acf-main.css">
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="/modules/modulestarter/views/js/admin/dist/acf-admin.js" defer></script>
+{% endblock %}
+```
+
+## 🔧 Configuration Webpack
+
+```javascript
+// webpack.config.js
+
+const path = require('path');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
+
+const isDev = process.env.NODE_ENV !== 'production';
+
+module.exports = {
+    mode: isDev ? 'development' : 'production',
+
+    entry: {
+        front: './_dev/js/front.js',
+        admin: './_dev/js/admin.js',
+    },
+
+    output: {
+        path: path.resolve(__dirname, 'views/dist'),
+        filename: 'js/[name].bundle.js',
+        clean: true,
+    },
+
+    devtool: isDev ? 'source-map' : false,
+
+    module: {
+        rules: [
+            // JavaScript
+            {
+                test: /\.js$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        presets: [
+                            ['@babel/preset-env', {
+                                targets: '> 0.5%, last 2 versions, not dead',
+                                useBuiltIns: 'usage',
+                                corejs: 3,
+                            }],
+                        ],
+                    },
+                },
+            },
+
+            // SCSS
+            {
+                test: /\.scss$/,
+                use: [
+                    MiniCssExtractPlugin.loader,
+                    'css-loader',
+                    {
+                        loader: 'postcss-loader',
+                        options: {
+                            postcssOptions: {
+                                plugins: ['autoprefixer'],
+                            },
+                        },
+                    },
+                    'sass-loader',
+                ],
+            },
+
+            // Images
+            {
+                test: /\.(png|svg|jpg|jpeg|gif|webp)$/i,
+                type: 'asset/resource',
+                generator: {
+                    filename: 'images/[name][ext]',
+                },
+            },
+
+            // Fonts
+            {
+                test: /\.(woff|woff2|eot|ttf|otf)$/i,
+                type: 'asset/resource',
+                generator: {
+                    filename: 'fonts/[name][ext]',
+                },
+            },
+        ],
+    },
+
+    plugins: [
+        new MiniCssExtractPlugin({
+            filename: 'css/[name].css',
+        }),
+    ],
+
+    optimization: {
+        minimizer: [
+            new TerserPlugin({
+                terserOptions: {
+                    format: { comments: false },
+                },
+                extractComments: false,
+            }),
+            new CssMinimizerPlugin(),
+        ],
+    },
+
+    // Résolution des imports
+    resolve: {
+        alias: {
+            '@': path.resolve(__dirname, '_dev/js'),
+            '@scss': path.resolve(__dirname, '_dev/scss'),
+        },
+    },
+};
+```
+
+## 📦 package.json
+
+```json
+{
+    "name": "modulestarter",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "webpack --mode development --watch",
+        "build": "webpack --mode production",
+        "build:dev": "webpack --mode development",
+        "lint:js": "eslint _dev/js --fix",
+        "lint:scss": "stylelint '_dev/scss/**/*.scss' --fix"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.23.0",
+        "@babel/preset-env": "^7.23.0",
+        "autoprefixer": "^10.4.0",
+        "babel-loader": "^9.1.0",
+        "css-loader": "^6.8.0",
+        "css-minimizer-webpack-plugin": "^5.0.0",
+        "eslint": "^8.50.0",
+        "mini-css-extract-plugin": "^2.7.0",
+        "postcss": "^8.4.0",
+        "postcss-loader": "^7.3.0",
+        "sass": "^1.68.0",
+        "sass-loader": "^13.3.0",
+        "stylelint": "^15.10.0",
+        "stylelint-config-standard-scss": "^11.0.0",
+        "terser-webpack-plugin": "^5.3.0",
+        "webpack": "^5.88.0",
+        "webpack-cli": "^5.1.0"
+    }
+}
+```
+
+## 🎨 JavaScript ES6+
+
+### Structure de base
+
+```javascript
+// _dev/js/front.js
+
+// Imports
+import './components/carousel';
+import { initModal } from './components/modal';
+import { AjaxHelper } from './utils/ajax';
+
+// Import SCSS (géré par Webpack)
+import '../scss/front.scss';
+
+/**
+ * Configuration globale du module.
+ * Injectée via Media::addJsDef() côté PHP.
+ */
+const config = window.modulestarterConfig || {};
+
+/**
+ * Classe principale du module.
+ */
+class ModuleStarterFront {
+    constructor() {
+        this.ajaxUrl = config.ajaxUrl || '';
+        this.token = config.token || '';
+        this.initialized = false;
+    }
+
+    /**
+     * Initialise le module.
+     */
+    init() {
+        if (this.initialized) {
+            return;
+        }
+
+        this.bindEvents();
+        this.initComponents();
+        this.initialized = true;
+
+        console.log('[ModuleStarter] Initialized');
+    }
+
+    /**
+     * Lie les événements.
+     */
+    bindEvents() {
+        // Délégation d'événements pour les éléments dynamiques
+        document.addEventListener('click', (e) => {
+            // Bouton d'action
+            if (e.target.matches('.js-modulestarter-action')) {
+                e.preventDefault();
+                this.handleAction(e.target);
+            }
+
+            // Fermer la modal
+            if (e.target.matches('.js-modulestarter-close')) {
+                e.preventDefault();
+                this.closeModal();
+            }
+        });
+
+        // Formulaire
+        const form = document.querySelector('.js-modulestarter-form');
+        if (form) {
+            form.addEventListener('submit', (e) => this.handleSubmit(e));
+        }
+    }
+
+    /**
+     * Initialise les composants.
+     */
+    initComponents() {
+        // Initialiser les modals
+        document.querySelectorAll('.js-modulestarter-modal').forEach((el) => {
+            initModal(el);
+        });
+    }
+
+    /**
+     * Gère une action utilisateur.
+     */
+    async handleAction(button) {
+        const action = button.dataset.action;
+        const id = button.dataset.id;
+
+        if (!action || !id) {
+            console.error('[ModuleStarter] Missing action or id');
+            return;
+        }
+
+        // Désactiver le bouton pendant le traitement
+        button.disabled = true;
+
+        try {
+            const response = await AjaxHelper.post(this.ajaxUrl, {
+                action,
+                id,
+                token: this.token,
+            });
+
+            if (response.success) {
+                this.showNotification(response.message, 'success');
+                this.updateUI(response.data);
+            } else {
+                this.showNotification(response.error, 'error');
+            }
+        } catch (error) {
+            console.error('[ModuleStarter] Action failed:', error);
+            this.showNotification('An error occurred', 'error');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    /**
+     * Gère la soumission d'un formulaire.
+     */
+    async handleSubmit(e) {
+        e.preventDefault();
+
+        const form = e.target;
+        const formData = new FormData(form);
+        formData.append('token', this.token);
+
+        // Validation côté client
+        if (!this.validateForm(form)) {
+            return;
+        }
+
+        const submitBtn = form.querySelector('[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+            const response = await AjaxHelper.postFormData(this.ajaxUrl, formData);
+
+            if (response.success) {
+                this.showNotification(response.message, 'success');
+                form.reset();
+            } else {
+                this.showNotification(response.error, 'error');
+            }
+        } catch (error) {
+            console.error('[ModuleStarter] Form submission failed:', error);
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+
+    /**
+     * Valide un formulaire.
+     */
+    validateForm(form) {
+        let isValid = true;
+
+        // Réinitialiser les erreurs
+        form.querySelectorAll('.is-invalid').forEach((el) => {
+            el.classList.remove('is-invalid');
+        });
+
+        // Vérifier les champs requis
+        form.querySelectorAll('[required]').forEach((field) => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            }
+        });
+
+        // Email
+        const emailField = form.querySelector('[type="email"]');
+        if (emailField && emailField.value) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailField.value)) {
+                emailField.classList.add('is-invalid');
+                isValid = false;
+            }
+        }
+
+        return isValid;
+    }
+
+    /**
+     * Affiche une notification.
+     */
+    showNotification(message, type = 'info') {
+        const container = document.querySelector('.js-modulestarter-notifications')
+            || document.body;
+
+        const notification = document.createElement('div');
+        notification.className = `modulestarter-notification modulestarter-notification--${type}`;
+        notification.innerHTML = `
+            <span class="modulestarter-notification__message">${message}</span>
+            <button class="modulestarter-notification__close" aria-label="Close">&times;</button>
+        `;
+
+        container.appendChild(notification);
+
+        // Fermer au clic
+        notification.querySelector('.modulestarter-notification__close')
+            .addEventListener('click', () => notification.remove());
+
+        // Auto-fermer après 5s
+        setTimeout(() => notification.remove(), 5000);
+    }
+}
+
+// Initialiser quand le DOM est prêt
+document.addEventListener('DOMContentLoaded', () => {
+    const moduleStarter = new ModuleStarterFront();
+    moduleStarter.init();
+
+    // Exposer globalement si nécessaire
+    window.ModuleStarter = moduleStarter;
+});
+```
+
+### Utilitaire AJAX
+
+```javascript
+// _dev/js/utils/ajax.js
+
+/**
+ * Helper pour les requêtes AJAX.
+ */
+export class AjaxHelper {
+    /**
+     * Requête GET.
+     */
+    static async get(url, params = {}) {
+        const queryString = new URLSearchParams(params).toString();
+        const fullUrl = queryString ? `${url}?${queryString}` : url;
+
+        const response = await fetch(fullUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+
+        return this.handleResponse(response);
+    }
+
+    /**
+     * Requête POST JSON.
+     */
+    static async post(url, data = {}) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        return this.handleResponse(response);
+    }
+
+    /**
+     * Requête POST FormData (pour upload).
+     */
+    static async postFormData(url, formData) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+            },
+            body: formData,
+        });
+
+        return this.handleResponse(response);
+    }
+
+    /**
+     * Gère la réponse.
+     */
+    static async handleResponse(response) {
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || `HTTP ${response.status}`);
+        }
+
+        return response.json();
+    }
+}
+```
+
+## 🎨 SCSS
+
+### Variables et structure
+
+```scss
+// _dev/scss/_variables.scss
+
+// Couleurs
+$primary-color: #007bff;
+$secondary-color: #6c757d;
+$success-color: #28a745;
+$danger-color: #dc3545;
+$warning-color: #ffc107;
+$info-color: #17a2b8;
+
+$text-color: #333;
+$text-muted: #6c757d;
+$background-color: #fff;
+$border-color: #dee2e6;
+
+// Typographie
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+$font-size-base: 14px;
+$font-size-small: 12px;
+$font-size-large: 16px;
+$line-height-base: 1.5;
+
+// Espacement
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// Breakpoints
+$breakpoint-sm: 576px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 992px;
+$breakpoint-xl: 1200px;
+
+// Transitions
+$transition-fast: 0.15s ease-in-out;
+$transition-normal: 0.3s ease-in-out;
+
+// Bordures
+$border-radius: 4px;
+$border-radius-lg: 8px;
+```
+
+### Mixins
+
+```scss
+// _dev/scss/_mixins.scss
+
+// Responsive
+@mixin media-up($breakpoint) {
+    @media (min-width: $breakpoint) {
+        @content;
+    }
+}
+
+@mixin media-down($breakpoint) {
+    @media (max-width: ($breakpoint - 1)) {
+        @content;
+    }
+}
+
+// Flexbox
+@mixin flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@mixin flex-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+// Texte tronqué
+@mixin text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+// Transition
+@mixin transition($props: all) {
+    transition: $props $transition-normal;
+}
+
+// Button reset
+@mixin button-reset {
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+}
+```
+
+### Styles principaux
+
+```scss
+// _dev/scss/front.scss
+
+@import 'variables';
+@import 'mixins';
+@import 'components/modal';
+@import 'components/carousel';
+@import 'components/notifications';
+
+// Préfixer toutes les classes avec le nom du module
+.modulestarter {
+    font-family: $font-family;
+    color: $text-color;
+
+    // Container
+    &-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: $spacing-md;
+    }
+
+    // Grille d'items
+    &-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: $spacing-md;
+
+        @include media-up($breakpoint-lg) {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    // Card item
+    &-item {
+        background: $background-color;
+        border: 1px solid $border-color;
+        border-radius: $border-radius;
+        overflow: hidden;
+        @include transition(transform, box-shadow);
+
+        &:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        &__image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        &__content {
+            padding: $spacing-md;
+        }
+
+        &__title {
+            margin: 0 0 $spacing-sm;
+            font-size: $font-size-large;
+            font-weight: 600;
+            @include text-truncate;
+        }
+
+        &__description {
+            margin: 0;
+            color: $text-muted;
+            font-size: $font-size-small;
+            line-height: $line-height-base;
+
+            // Limiter à 3 lignes
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        &__link {
+            display: inline-flex;
+            align-items: center;
+            margin-top: $spacing-sm;
+            color: $primary-color;
+            text-decoration: none;
+            font-weight: 500;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+    }
+}
+```
+
+## 📝 Templates Smarty (Front-Office)
+
+```smarty
+{* views/templates/hook/home.tpl *}
+
+{if !empty($modulestarter.items)}
+<section class="modulestarter-section">
+    <div class="modulestarter-container">
+        {if $modulestarter.title}
+        <h2 class="modulestarter-title">{$modulestarter.title|escape:'html':'UTF-8'}</h2>
+        {/if}
+
+        <div class="modulestarter-grid">
+            {foreach $modulestarter.items as $item}
+            <article class="modulestarter-item">
+                {if $item.image}
+                <img
+                    src="{$link->getMediaLink("/modules/modulestarter/views/images/{$item.image}")}"
+                    alt="{$item.name|escape:'html':'UTF-8'}"
+                    class="modulestarter-item__image"
+                    loading="lazy"
+                >
+                {/if}
+
+                <div class="modulestarter-item__content">
+                    <h3 class="modulestarter-item__title">
+                        {$item.name|escape:'html':'UTF-8'}
+                    </h3>
+
+                    {if $item.description}
+                    <p class="modulestarter-item__description">
+                        {$item.description|strip_tags|truncate:150:'...'}
+                    </p>
+                    {/if}
+
+                    {if $item.link}
+                    <a href="{$item.link|escape:'html':'UTF-8'}"
+                       class="modulestarter-item__link"
+                       target="_blank"
+                       rel="noopener">
+                        {l s='Learn more' d='Modules.Modulestarter.Shop'}
+                        <span class="modulestarter-icon-arrow">→</span>
+                    </a>
+                    {/if}
+                </div>
+            </article>
+            {/foreach}
+        </div>
+
+        {if $modulestarter.link}
+        <div class="modulestarter-actions">
+            <a href="{$modulestarter.link}" class="btn btn-primary">
+                {l s='View all' d='Modules.Modulestarter.Shop'}
+            </a>
+        </div>
+        {/if}
+    </div>
+</section>
+{/if}
+```
+
+## 📝 Templates Twig (Back-Office)
+
+```twig
+{# views/templates/admin/items/index.html.twig #}
+
+{% extends '@PrestaShop/Admin/layout.html.twig' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3>{{ 'Items'|trans({}, 'Modules.Modulestarter.Admin') }}</h3>
+        </div>
+        <div class="card-header-actions">
+            <a href="{{ path('modulestarter_items_create') }}" class="btn btn-primary">
+                <i class="material-icons">add</i>
+                {{ 'Add new item'|trans({}, 'Modules.Modulestarter.Admin') }}
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        {% include '@PrestaShop/Admin/Common/Grid/grid.html.twig' with {'grid': grid} %}
+    </div>
+</div>
+{% endblock %}
+```
+
+## ⚠️ JavaScript - Syntaxe ES2020+ non supportée par défaut
+
+Webpack Encore avec Babel ne supporte PAS par défaut:
+- Optional chaining: `obj?.prop`
+- Nullish coalescing: `value ?? default`
+
+```javascript
+// ❌ ERREUR de compilation
+element.querySelector('.title')?.textContent = item.title;
+const value = data?.items ?? [];
+
+// ✅ CORRECT - Syntaxe ES5/ES6 compatible
+const titleEl = element.querySelector('.title');
+if (titleEl) { titleEl.textContent = item.title; }
+const value = (data && data.items) || [];
+```
+
+## ✅ Bonnes Pratiques
+
+1. **Préfixer les classes** avec le nom du module
+2. **BEM** pour la nomenclature CSS
+3. **JS Classes** - Utiliser `.js-*` pour les sélecteurs JS
+4. **Lazy loading** pour les images
+5. **Minification** en production
+6. **Source maps** en développement
+7. **Escape** toujours les variables Smarty
+8. **Translations** pour tous les textes
+9. **Éviter `?.` et `??`** - Non supportés par Babel par défaut

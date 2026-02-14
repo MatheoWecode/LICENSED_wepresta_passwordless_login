@@ -1,0 +1,126 @@
+// =============================================================================
+// WEDEV UI - Variables PrestaShop 9
+// =============================================================================
+// Source: PrestaShop 9 admin/themes/new-theme/scss/_variables.scss
+// NE PAS MODIFIER - Copie exacte des variables PS9
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Couleurs primaires PS9
+// -----------------------------------------------------------------------------
+$ps-primary: #25b9d7;
+$ps-secondary: #6c868e;
+$ps-success: #70b580;
+$ps-info: #25b9d7;
+$ps-warning: #fab000;
+$ps-danger: #e15d5d;
+
+// -----------------------------------------------------------------------------
+// Echelle de gris PS9
+// -----------------------------------------------------------------------------
+$ps-gray-900: #282b30;
+$ps-gray-800: #363a41;
+$ps-gray-700: #6c868e;
+$ps-gray-600: #7a7a7a;
+$ps-gray-500: #bbcdd2;
+$ps-gray-400: #dbe6e9;
+$ps-gray-300: #ecf0f1;
+$ps-gray-200: #f4f7f8;
+$ps-gray-100: #fafbfc;
+
+// Alias pratiques
+$ps-dark: $ps-gray-900;
+$ps-light: $ps-gray-100;
+$ps-border: $ps-gray-400;
+$ps-muted: $ps-gray-600;
+
+// -----------------------------------------------------------------------------
+// Typography PS9
+// -----------------------------------------------------------------------------
+$ps-font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+$ps-font-size-base: 0.875rem;  // 14px
+$ps-font-size-sm: 0.75rem;     // 12px
+$ps-font-size-lg: 1rem;        // 16px
+
+$ps-font-weight-normal: 400;
+$ps-font-weight-medium: 500;
+$ps-font-weight-semibold: 600;
+$ps-font-weight-bold: 700;
+
+$ps-line-height-base: 1.5;
+$ps-line-height-sm: 1.25;
+$ps-line-height-lg: 1.75;
+
+// -----------------------------------------------------------------------------
+// Spacing PS9
+// -----------------------------------------------------------------------------
+$ps-spacer: 1rem;
+
+$ps-spacer-0: 0;
+$ps-spacer-1: $ps-spacer * 0.25;  // 4px
+$ps-spacer-2: $ps-spacer * 0.5;   // 8px
+$ps-spacer-3: $ps-spacer;          // 16px
+$ps-spacer-4: $ps-spacer * 1.5;   // 24px
+$ps-spacer-5: $ps-spacer * 2;     // 32px
+$ps-spacer-6: $ps-spacer * 3;     // 48px
+
+// -----------------------------------------------------------------------------
+// Border radius PS9
+// -----------------------------------------------------------------------------
+$ps-border-radius: 4px;
+$ps-border-radius-sm: 2px;
+$ps-border-radius-lg: 8px;
+$ps-border-radius-xl: 12px;
+$ps-border-radius-pill: 50rem;
+
+// -----------------------------------------------------------------------------
+// Shadows PS9
+// -----------------------------------------------------------------------------
+$ps-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+$ps-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+$ps-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.12);
+$ps-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.15);
+
+// Focus ring
+$ps-focus-ring: 0 0 0 3px rgba($ps-primary, 0.25);
+
+// -----------------------------------------------------------------------------
+// Transitions PS9
+// -----------------------------------------------------------------------------
+$ps-transition-base: all 0.2s ease-in-out;
+$ps-transition-fast: all 0.1s ease-in-out;
+$ps-transition-slow: all 0.3s ease-in-out;
+
+// -----------------------------------------------------------------------------
+// Z-index PS9
+// -----------------------------------------------------------------------------
+$ps-zindex-dropdown: 1000;
+$ps-zindex-sticky: 1020;
+$ps-zindex-fixed: 1030;
+$ps-zindex-modal-backdrop: 1040;
+$ps-zindex-modal: 1050;
+$ps-zindex-popover: 1060;
+$ps-zindex-tooltip: 1070;
+$ps-zindex-toast: 1080;
+
+// -----------------------------------------------------------------------------
+// Breakpoints PS9 (alignés Bootstrap 4)
+// -----------------------------------------------------------------------------
+$ps-breakpoint-xs: 0;
+$ps-breakpoint-sm: 576px;
+$ps-breakpoint-md: 768px;
+$ps-breakpoint-lg: 992px;
+$ps-breakpoint-xl: 1200px;
+
+// -----------------------------------------------------------------------------
+// Container max-widths
+// -----------------------------------------------------------------------------
+$ps-container-sm: 540px;
+$ps-container-md: 720px;
+$ps-container-lg: 960px;
+$ps-container-xl: 1140px;
+
+
+
+
+

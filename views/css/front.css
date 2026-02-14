@@ -1,0 +1,113 @@
+/**
+ * Module Starter - Styles Front-Office
+ */
+
+/* ============================================
+   VARIABLES
+   ============================================ */
+:root {
+    --wepresta_passwordless_login-primary: #25b9d7;
+    --wepresta_passwordless_login-secondary: #363a41;
+    --wepresta_passwordless_login-bg: #f8f9fa;
+    --wepresta_passwordless_login-text: #232323;
+    --wepresta_passwordless_login-radius: 8px;
+    --wepresta_passwordless_login-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================
+   HOME BLOCK
+   ============================================ */
+.wepresta_passwordless_login-home {
+    padding: 2rem 0;
+}
+
+.wepresta_passwordless_login-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: var(--wepresta_passwordless_login-bg);
+    border-radius: var(--wepresta_passwordless_login-radius);
+    box-shadow: var(--wepresta_passwordless_login-shadow);
+    text-align: center;
+}
+
+.wepresta_passwordless_login-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--wepresta_passwordless_login-secondary);
+    margin-bottom: 1rem;
+}
+
+.wepresta_passwordless_login-description {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--wepresta_passwordless_login-text);
+    margin-bottom: 1.5rem;
+}
+
+.wepresta_passwordless_login-btn {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background: var(--wepresta_passwordless_login-primary);
+    color: #fff;
+    text-decoration: none;
+    border-radius: var(--wepresta_passwordless_login-radius);
+    font-weight: 500;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.wepresta_passwordless_login-btn:hover {
+    background: color-mix(in srgb, var(--wepresta_passwordless_login-primary) 85%, black);
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+/* ============================================
+   PAGE
+   ============================================ */
+.wepresta_passwordless_login-page {
+    padding: 2rem 0;
+}
+
+.wepresta_passwordless_login-content {
+    background: #fff;
+    padding: 2rem;
+    border-radius: var(--wepresta_passwordless_login-radius);
+    box-shadow: var(--wepresta_passwordless_login-shadow);
+}
+
+.wepresta_passwordless_login-info {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: var(--wepresta_passwordless_login-bg);
+    border-radius: var(--wepresta_passwordless_login-radius);
+    border-left: 4px solid var(--wepresta_passwordless_login-primary);
+}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.wepresta_passwordless_login-footer {
+    padding: 1rem 0;
+    text-align: center;
+}
+
+.wepresta_passwordless_login-footer-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin: 0;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .wepresta_passwordless_login-container {
+        padding: 1.5rem;
+        margin: 0 1rem;
+    }
+
+    .wepresta_passwordless_login-title {
+        font-size: 1.5rem;
+    }
+}

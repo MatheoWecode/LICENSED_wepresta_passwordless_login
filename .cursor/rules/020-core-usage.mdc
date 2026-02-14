@@ -1,0 +1,229 @@
+---
+description: Utilisation du WEDEV Core
+globs: ["src/**/*.php"]
+alwaysApply: true
+---
+
+# WEDEV Core - Utilisation
+
+## Règle Fondamentale
+
+```
+⚠️ NE JAMAIS modifier src/Wedev/Core/ - Géré par WEDEV CLI
+   Pour personnaliser: étendre les classes dans votre namespace
+```
+
+## Adapters
+
+### ConfigurationAdapter
+```php
+use MonModule\Wedev\Core\Adapter\ConfigurationAdapter;
+
+$config = new ConfigurationAdapter();
+
+// Lecture
+$value = $config->get('MONMODULE_OPTION', 'default');
+$allConfigs = $config->getMultiple(['KEY1', 'KEY2']);
+
+// Écriture
+$config->set('MONMODULE_OPTION', $value);
+$config->setMultiple(['KEY1' => 'val1', 'KEY2' => 'val2']);
+
+// Suppression
+$config->delete('MONMODULE_OPTION');
+```
+
+### ContextAdapter
+```php
+use MonModule\Wedev\Core\Adapter\ContextAdapter;
+
+$context = new ContextAdapter();
+
+$shopId = $context->getShopId();
+$langId = $context->getLangId();
+$customerId = $context->getCustomerId();
+$cartId = $context->getCartId();
+$employeeId = $context->getEmployeeId();
+$currency = $context->getCurrency();
+```
+
+### ShopAdapter (Multi-shop)
+```php
+use MonModule\Wedev\Core\Adapter\ShopAdapter;
+
+$shop = new ShopAdapter();
+
+if ($shop->isMultiShopActive()) {
+    $shops = $shop->getActiveShops();
+    
+    // Exécuter dans le contexte d'une boutique
+    $shop->executeInShopContext(2, function() {
+        // Code exécuté avec shop_id = 2
+    });
+    
+    // Pour chaque boutique
+    $shop->forEachShop(function($shopData) {
+        // $shopData = ['id_shop' => 1, 'name' => 'Ma Boutique', 'active' => true]
+    });
+}
+```
+
+## Traits
+
+### LoggerTrait
+```php
+use MonModule\Wedev\Core\Trait\LoggerTrait;
+
+class MonService {
+    use LoggerTrait;
+    
+    public function process(): void {
+        $this->log('info', 'Processing started');
+        $this->log('debug', 'Data: ' . json_encode($data));
+        $this->log('error', 'Something failed');
+    }
+}
+```
+
+### TranslatorTrait
+```php
+use MonModule\Wedev\Core\Trait\TranslatorTrait;
+
+class MonController {
+    use TranslatorTrait;
+    
+    public function action(): void {
+        $message = $this->trans('Welcome message', 'Modules.Monmodule.Admin');
+    }
+}
+```
+
+### MultiShopTrait
+```php
+use MonModule\Wedev\Core\Trait\MultiShopTrait;
+
+class MonService {
+    use MultiShopTrait;
+    
+    public function syncAll(): void {
+        if ($this->isMultiShopActive()) {
+            $this->forEachShop(function($shop) {
+                $this->syncShop($shop['id_shop']);
+            });
+        }
+    }
+}
+```
+
+## AbstractRepository
+
+```php
+use MonModule\Wedev\Core\Repository\AbstractRepository;
+
+class ProductRepository extends AbstractRepository {
+    protected function getTableName(): string {
+        return 'monmodule_products';
+    }
+    
+    protected function getPrimaryKey(): string {
+        return 'id_product';
+    }
+    
+    // Méthodes héritées:
+    // findOneBy(array $criteria): ?array
+    // findBy(array $criteria, array $orderBy = [], int $limit = 0): array
+    // insert(array $data): int
+    // update(int $id, array $data): bool
+    // deleteBy(array $criteria): int
+    // count(array $criteria = []): int
+}
+```
+
+### Relations Many-to-Many
+
+Pour gérer les tables pivot (ex: `label_product`):
+
+```php
+class LabelRepository extends AbstractRepository {
+    protected function getTableName(): string {
+        return 'monmodule_labels';
+    }
+
+    // Attacher un produit
+    public function attachProduct(int $labelId, int $productId): bool {
+        return $this->attachTo('monmodule_label_product', 'id_product', $labelId, $productId);
+    }
+
+    // Détacher un produit
+    public function detachProduct(int $labelId, int $productId): bool {
+        return $this->detachFrom('monmodule_label_product', 'id_product', $labelId, $productId);
+    }
+
+    // Détacher tous les produits
+    public function detachAllProducts(int $labelId): bool {
+        return $this->detachAll('monmodule_label_product', $labelId);
+    }
+
+    // Attacher plusieurs produits
+    public function attachProducts(int $labelId, array $productIds): bool {
+        return $this->attachMany('monmodule_label_product', 'id_product', $labelId, $productIds);
+    }
+
+    // Récupérer les IDs des produits attachés
+    public function getProductIds(int $labelId): array {
+        return $this->getAttachedIds('monmodule_label_product', 'id_product', $labelId);
+    }
+
+    // Synchroniser (remplace toutes les associations)
+    public function syncProducts(int $labelId, array $productIds): void {
+        $this->syncAttached('monmodule_label_product', 'id_product', $labelId, $productIds);
+    }
+}
+```
+
+| Méthode | Description |
+|---------|-------------|
+| `attachTo($pivot, $fk, $id, $fkId)` | Attache une entité |
+| `detachFrom($pivot, $fk, $id, $fkId)` | Détache une entité |
+| `detachAll($pivot, $id)` | Détache toutes les entités |
+| `attachMany($pivot, $fk, $id, $fkIds)` | Attache plusieurs entités |
+| `getAttachedIds($pivot, $fk, $id)` | Récupère les IDs attachés |
+| `syncAttached($pivot, $fk, $id, $fkIds)` | Synchronise (delete + insert) |
+
+## Exceptions
+
+```php
+use MonModule\Wedev\Core\Exception\EntityNotFoundException;
+use MonModule\Wedev\Core\Exception\ValidationException;
+use MonModule\Wedev\Core\Exception\ConfigurationException;
+
+// Entity not found
+throw EntityNotFoundException::forId('Product', $id);
+throw EntityNotFoundException::forCriteria('Product', ['sku' => $sku]);
+
+// Validation
+throw ValidationException::forField('price', 'Must be positive');
+throw ValidationException::forConstraint('email', 'Invalid format');
+
+// Configuration
+throw ConfigurationException::missingKey('API_KEY');
+throw ConfigurationException::invalidValue('TIMEOUT', $value);
+```
+
+## ExtensionLoader
+
+```php
+use MonModule\Wedev\Core\Extension\ExtensionLoader;
+
+// Vérifier si une extension est disponible
+if (ExtensionLoader::isAvailable('Http')) {
+    $client = new HttpClient();
+}
+
+// Requérir une extension (lance DependencyException si absente)
+ExtensionLoader::require('Jobs');
+
+// Lister les extensions disponibles
+$extensions = ExtensionLoader::getAvailableExtensions();
+// ['UI', 'Http', 'Rules', ...]
+```

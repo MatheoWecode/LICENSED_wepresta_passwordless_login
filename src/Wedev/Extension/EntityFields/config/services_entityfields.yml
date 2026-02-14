@@ -1,0 +1,25 @@
+# Extension EntityFields - Services Symfony
+#
+# Importer dans le module :
+# imports:
+#     - { resource: '../src/Wedev/Extension/EntityFields/config/services_entityfields.yml' }
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    # Registry central pour tous les types d'entités
+    Wepresta_Passwordless_Login\Wedev\Extension\EntityFields\EntityFieldRegistry:
+        public: true
+
+    # Alias court
+    wedev.entity_field_registry:
+        alias: Wepresta_Passwordless_Login\Wedev\Extension\EntityFields\EntityFieldRegistry
+        public: true
+
+    # Context builder (statique, pas besoin d'instance)
+    # Utiliser: EntityFieldContext::build() ou EntityFieldContext::buildFromProvider()
+
+

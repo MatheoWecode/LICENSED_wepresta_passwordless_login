@@ -1,0 +1,424 @@
+---
+description: Core partagé WEDEV - Classes réutilisables et mise à jour
+globs: ["src/Wedev/Core/**/*.php"]
+alwaysApply: false
+---
+
+# Core Partagé WEDEV
+
+## ⚠️ RÈGLE CRITIQUE
+
+**NE JAMAIS MODIFIER les fichiers dans `src/Wedev/Core/`**
+
+Ces fichiers sont gérés par WEDEV CLI et mis à jour via :
+```bash
+wedev ps module --update-core
+```
+
+## Structure du Core
+
+```
+src/Wedev/Core/
+├── Adapter/              # Adapters PrestaShop
+│   ├── ConfigurationAdapter.php   # Accès Configuration::get/set
+│   └── ContextAdapter.php         # Accès Context::getContext()
+├── Exception/            # Exceptions de base
+│   ├── ModuleException.php        # Exception générique
+│   ├── EntityNotFoundException.php
+│   └── ValidationException.php
+├── Repository/           # Classes de base
+│   └── AbstractRepository.php     # CRUD avec Db PrestaShop
+├── Service/              # Services utilitaires
+│   └── CacheService.php           # Cache unifié
+└── Trait/                # Traits réutilisables
+    ├── ModuleAwareTrait.php       # Accès au module
+    ├── LoggerTrait.php            # Logging
+    └── TranslatorTrait.php        # Traductions
+```
+
+## Utilisation des Classes Core
+
+### ConfigurationAdapter
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MonModule\Application\Service;
+
+use MonModule\Core\Adapter\ConfigurationAdapter;
+
+class SettingsService
+{
+    public function __construct(
+        private readonly ConfigurationAdapter $config
+    ) {}
+
+    public function isFeatureEnabled(): bool
+    {
+        return $this->config->getBool('MONMODULE_FEATURE_ENABLED', false);
+    }
+
+    public function getLimit(): int
+    {
+        return $this->config->getInt('MONMODULE_LIMIT') ?: 10;
+    }
+
+    public function getOptions(): ?array
+    {
+        return $this->config->getJson('MONMODULE_OPTIONS');
+    }
+
+    public function saveSettings(array $settings): bool
+    {
+        return $this->config->setMultiple([
+            'MONMODULE_FEATURE_ENABLED' => $settings['enabled'],
+            'MONMODULE_LIMIT' => $settings['limit'],
+            'MONMODULE_OPTIONS' => json_encode($settings['options']),
+        ]);
+    }
+}
+```
+
+### ContextAdapter
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MonModule\Application\Service;
+
+use MonModule\Core\Adapter\ContextAdapter;
+
+class DisplayService
+{
+    public function __construct(
+        private readonly ContextAdapter $context
+    ) {}
+
+    public function getDisplayData(): array
+    {
+        return [
+            'is_logged' => $this->context->isCustomerLogged(),
+            'customer_id' => $this->context->getCustomerId(),
+            'language_iso' => $this->context->getLanguageIso(),
+            'currency_sign' => $this->context->getCurrencySign(),
+            'shop_id' => $this->context->getShopId(),
+            'is_admin' => $this->context->isAdminContext(),
+        ];
+    }
+
+    public function renderTemplate(string $template, array $data): string
+    {
+        $this->context->assignSmarty($data);
+
+        return $this->context->getSmarty()->fetch($template);
+    }
+}
+```
+
+### AbstractRepository
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MonModule\Infrastructure\Repository;
+
+use MonModule\Core\Repository\AbstractRepository;
+
+class ProductTagRepository extends AbstractRepository
+{
+    protected function getTableName(): string
+    {
+        return 'monmodule_product_tag';
+    }
+
+    // Méthodes héritées automatiquement :
+    // - findById(int $id): ?array
+    // - findAll(?int $limit, ?int $offset): array
+    // - findBy(array $criteria): array
+    // - findOneBy(array $criteria): ?array
+    // - count(?array $criteria): int
+    // - insert(array $data): int
+    // - update(int $id, array $data): bool
+    // - delete(int $id): bool
+    // - toggleActive(int $id): bool
+
+    // Méthodes personnalisées
+    public function findByProduct(int $productId): array
+    {
+        return $this->findBy(['id_product' => $productId], 'position ASC');
+    }
+
+    public function countByProduct(int $productId): int
+    {
+        return $this->count(['id_product' => $productId]);
+    }
+}
+```
+
+### Exceptions
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MonModule\Application\Service;
+
+use MonModule\Core\Exception\EntityNotFoundException;
+use MonModule\Core\Exception\ValidationException;
+use MonModule\Core\Exception\ModuleException;
+use MonModule\Infrastructure\Repository\ItemRepository;
+
+class ItemService
+{
+    public function __construct(
+        private readonly ItemRepository $repository
+    ) {}
+
+    public function getItem(int $id): array
+    {
+        $item = $this->repository->findById($id);
+
+        if ($item === null) {
+            throw EntityNotFoundException::withId('Item', $id);
+        }
+
+        return $item;
+    }
+
+    public function createItem(array $data): int
+    {
+        $errors = $this->validate($data);
+
+        if (!empty($errors)) {
+            throw ValidationException::forFields($errors);
+        }
+
+        try {
+            return $this->repository->insert($data);
+        } catch (\Exception $e) {
+            throw ModuleException::withContext(
+                'Failed to create item',
+                ['data' => $data, 'error' => $e->getMessage()]
+            );
+        }
+    }
+
+    private function validate(array $data): array
+    {
+        $errors = [];
+
+        if (empty($data['name'])) {
+            $errors['name'] = ['Name is required'];
+        }
+
+        if (isset($data['position']) && $data['position'] < 0) {
+            $errors['position'] = ['Position must be positive'];
+        }
+
+        return $errors;
+    }
+}
+```
+
+### Traits
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MonModule\Application\Handler;
+
+use MonModule\Core\Trait\ModuleAwareTrait;
+use MonModule\Core\Trait\LoggerTrait;
+use MonModule\Core\Trait\TranslatorTrait;
+
+class OrderHandler
+{
+    use ModuleAwareTrait;
+    use LoggerTrait;
+    use TranslatorTrait;
+
+    public function handleNewOrder(int $orderId): void
+    {
+        $this->logInfo('Processing new order', ['order_id' => $orderId]);
+
+        try {
+            // Traitement...
+            $service = $this->getService(OrderProcessingService::class);
+            $service->process($orderId);
+
+            $this->logInfo('Order processed successfully');
+        } catch (\Exception $e) {
+            $this->logException($e);
+            throw $e;
+        }
+    }
+
+    public function getSuccessMessage(): string
+    {
+        return $this->trans('Order processed successfully');
+    }
+}
+```
+
+### CacheService
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MonModule\Application\Service;
+
+use MonModule\Core\Service\CacheService;
+use MonModule\Infrastructure\Repository\ProductRepository;
+
+class CachedProductService
+{
+    public function __construct(
+        private readonly ProductRepository $repository,
+        private readonly CacheService $cache
+    ) {}
+
+    public function getProducts(int $categoryId): array
+    {
+        return $this->cache->get(
+            'products_cat_' . $categoryId,
+            fn() => $this->repository->findByCategory($categoryId),
+            3600 // TTL 1 heure
+        );
+    }
+
+    public function getProductWithRelations(int $productId): array
+    {
+        // Cache avec paramètres
+        return $this->cache->remember(
+            'product_full',
+            ['id' => $productId, 'lang' => Context::getContext()->language->id],
+            fn() => $this->repository->findWithRelations($productId),
+            1800 // TTL 30 minutes
+        );
+    }
+
+    public function invalidateProductCache(int $productId): void
+    {
+        $this->cache->delete('product_full_' . md5(json_encode(['id' => $productId])));
+    }
+
+    public function clearAllCache(): void
+    {
+        $this->cache->clear();
+    }
+}
+```
+
+## Configuration Services (services.yml)
+
+```yaml
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  # Core Adapters
+  MonModule\Core\Adapter\ConfigurationAdapter:
+    public: true
+
+  MonModule\Core\Adapter\ContextAdapter:
+    public: true
+
+  # Core Services
+  MonModule\Core\Service\CacheService:
+    public: true
+    arguments:
+      $prefix: 'monmodule_'
+      $defaultTtl: 3600
+```
+
+## Extension du Core
+
+Pour étendre les classes Core, créez vos propres classes :
+
+```php
+<?php
+// src/Infrastructure/Adapter/MyConfigAdapter.php
+
+declare(strict_types=1);
+
+namespace MonModule\Infrastructure\Adapter;
+
+use MonModule\Core\Adapter\ConfigurationAdapter;
+
+class MyConfigAdapter extends ConfigurationAdapter
+{
+    private const PREFIX = 'MONMODULE_';
+
+    /**
+     * Récupère une config avec préfixe automatique.
+     */
+    public function getModuleConfig(string $key): mixed
+    {
+        return $this->get(self::PREFIX . $key);
+    }
+
+    /**
+     * Définit une config avec préfixe automatique.
+     */
+    public function setModuleConfig(string $key, mixed $value): bool
+    {
+        return $this->set(self::PREFIX . $key, $value);
+    }
+}
+```
+
+## Mise à jour du Core
+
+```bash
+# Vérifie les mises à jour disponibles
+wedev ps module --check-core
+
+# Met à jour le Core
+wedev ps module --update-core
+
+# Force la mise à jour (écrase les modifications)
+wedev ps module --update-core --force
+```
+
+## Anti-Patterns
+
+❌ **NE PAS faire :**
+
+```php
+// Modifier directement un fichier Core
+// src/Wedev/Core/Adapter/ConfigurationAdapter.php <- INTERDIT
+
+// Copier-coller du code Core
+class MyAdapter {
+    // Code copié de ConfigurationAdapter...
+}
+```
+
+✅ **Faire :**
+
+```php
+// Étendre la classe Core
+use MonModule\Core\Adapter\ConfigurationAdapter;
+
+class MyAdapter extends ConfigurationAdapter
+{
+    // Vos extensions...
+}
+```
+
+## Version
+
+La version du Core est définie dans `.wedev-core-version`.

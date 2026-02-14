@@ -1,0 +1,56 @@
+# PHPStan Configuration - Module Starter PRO
+# Documentation: https://phpstan.org/config-reference
+# Note: Les extensions sont auto-chargées par phpstan/extension-installer
+
+includes:
+    # Seul bleedingEdge n'est pas auto-chargé
+    - vendor/phpstan/phpstan/conf/bleedingEdge.neon
+
+parameters:
+    level: 8
+
+    paths:
+        - wepresta_passwordless_login.php
+        - src/
+        - controllers/
+
+    excludePaths:
+        - vendor/
+        - var/
+        - node_modules/
+
+    # PrestaShop bootstrap (ajuster selon votre environnement)
+    bootstrapFiles:
+        - tests/bootstrap.php
+
+    # Stubs pour PrestaShop (créés automatiquement si absents)
+    scanFiles:
+        - stubs/prestashop.php
+
+    # Ignorer certaines erreurs PrestaShop inévitables
+    ignoreErrors:
+        # Classes globales PrestaShop
+        - '#Class (Module|Configuration|Db|DbQuery|Tools|Context|Shop|Language|Tab|HelperForm|AdminController|ModuleFrontController|PrestaShopLogger|Product|Order|Customer|Cart|Currency|ObjectModel) not found#'
+
+        # Constantes globales
+        - '#Constant (_PS_VERSION_|_DB_PREFIX_|_MYSQL_ENGINE_|_PS_MODE_DEV_|_PS_CACHE_DIR_) not found#'
+
+        # Méthodes dynamiques PrestaShop
+        - '#Call to an undefined method Module::#'
+        - '#Call to an undefined static method Module::#'
+
+        # Types génériques PrestaShop
+        - '#has no return type specified#'
+        - '#no value type specified in iterable type array#'
+
+    # Cache
+    tmpDir: var/cache/phpstan
+
+    # Parallel processing
+    parallel:
+        maximumNumberOfProcesses: 4
+
+    # Reporting
+    reportUnmatchedIgnoredErrors: false
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false

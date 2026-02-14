@@ -1,0 +1,169 @@
+// =============================================================================
+// WEDEV UI - Variables Hummingbird (Theme Front-Office PS9)
+// =============================================================================
+// Source: PrestaShop 9 themes/hummingbird/assets/scss/_variables.scss
+// NE PAS MODIFIER - Copie exacte des variables Hummingbird
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Couleurs Hummingbird
+// -----------------------------------------------------------------------------
+$hb-primary: #2fb5d2;
+$hb-secondary: #f39d72;
+$hb-success: #4cbb6c;
+$hb-warning: #ff9a52;
+$hb-danger: #e4606d;
+$hb-info: #2fb5d2;
+
+// -----------------------------------------------------------------------------
+// Echelle de gris Hummingbird
+// -----------------------------------------------------------------------------
+$hb-black: #232323;
+$hb-gray-darker: #313131;
+$hb-gray-dark: #414141;
+$hb-gray: #7a7a7a;
+$hb-gray-light: #bebebe;
+$hb-gray-lighter: #f1f1f1;
+$hb-white: #ffffff;
+
+// Alias pratiques
+$hb-text-color: $hb-black;
+$hb-text-muted: $hb-gray;
+$hb-border-color: $hb-gray-lighter;
+$hb-background: $hb-white;
+$hb-background-alt: $hb-gray-lighter;
+
+// -----------------------------------------------------------------------------
+// Typography Hummingbird
+// -----------------------------------------------------------------------------
+$hb-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$hb-font-size-base: 1rem;       // 16px
+$hb-font-size-sm: 0.875rem;     // 14px
+$hb-font-size-lg: 1.125rem;     // 18px
+$hb-font-size-xl: 1.25rem;      // 20px
+
+$hb-font-weight-normal: 400;
+$hb-font-weight-medium: 500;
+$hb-font-weight-semibold: 600;
+$hb-font-weight-bold: 700;
+
+$hb-line-height-base: 1.5;
+$hb-line-height-sm: 1.25;
+$hb-line-height-lg: 1.75;
+
+// Headings
+$hb-h1-font-size: 2.5rem;       // 40px
+$hb-h2-font-size: 2rem;         // 32px
+$hb-h3-font-size: 1.75rem;      // 28px
+$hb-h4-font-size: 1.5rem;       // 24px
+$hb-h5-font-size: 1.25rem;      // 20px
+$hb-h6-font-size: 1rem;         // 16px
+
+// -----------------------------------------------------------------------------
+// Spacing Hummingbird
+// -----------------------------------------------------------------------------
+$hb-spacer: 1rem;
+
+$hb-spacer-0: 0;
+$hb-spacer-1: $hb-spacer * 0.25;  // 4px
+$hb-spacer-2: $hb-spacer * 0.5;   // 8px
+$hb-spacer-3: $hb-spacer;          // 16px
+$hb-spacer-4: $hb-spacer * 1.5;   // 24px
+$hb-spacer-5: $hb-spacer * 2;     // 32px
+$hb-spacer-6: $hb-spacer * 3;     // 48px
+
+// -----------------------------------------------------------------------------
+// Border radius Hummingbird
+// -----------------------------------------------------------------------------
+$hb-border-radius: 4px;
+$hb-border-radius-sm: 2px;
+$hb-border-radius-lg: 8px;
+$hb-border-radius-xl: 12px;
+$hb-border-radius-pill: 50rem;
+
+// -----------------------------------------------------------------------------
+// Shadows Hummingbird
+// -----------------------------------------------------------------------------
+$hb-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$hb-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+$hb-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.15);
+$hb-shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.2);
+
+// -----------------------------------------------------------------------------
+// Transitions Hummingbird
+// -----------------------------------------------------------------------------
+$hb-transition-base: all 0.2s ease-in-out;
+$hb-transition-fast: all 0.1s ease-in-out;
+$hb-transition-slow: all 0.3s ease-in-out;
+
+// -----------------------------------------------------------------------------
+// Container widths Hummingbird
+// -----------------------------------------------------------------------------
+$hb-container-max-width: 1320px;
+$hb-container-padding: 15px;
+
+// -----------------------------------------------------------------------------
+// Grid Hummingbird
+// -----------------------------------------------------------------------------
+$hb-grid-columns: 12;
+$hb-grid-gutter: 30px;
+
+// -----------------------------------------------------------------------------
+// Breakpoints Hummingbird
+// -----------------------------------------------------------------------------
+$hb-breakpoint-xs: 0;
+$hb-breakpoint-sm: 576px;
+$hb-breakpoint-md: 768px;
+$hb-breakpoint-lg: 992px;
+$hb-breakpoint-xl: 1200px;
+$hb-breakpoint-xxl: 1400px;
+
+// -----------------------------------------------------------------------------
+// Buttons Hummingbird
+// -----------------------------------------------------------------------------
+$hb-btn-padding-y: 0.625rem;      // 10px
+$hb-btn-padding-x: 1.25rem;       // 20px
+$hb-btn-font-size: 1rem;
+$hb-btn-font-weight: $hb-font-weight-medium;
+$hb-btn-border-radius: $hb-border-radius;
+
+$hb-btn-padding-y-sm: 0.375rem;   // 6px
+$hb-btn-padding-x-sm: 0.75rem;    // 12px
+$hb-btn-font-size-sm: 0.875rem;
+
+$hb-btn-padding-y-lg: 0.75rem;    // 12px
+$hb-btn-padding-x-lg: 1.5rem;     // 24px
+$hb-btn-font-size-lg: 1.125rem;
+
+// -----------------------------------------------------------------------------
+// Forms Hummingbird
+// -----------------------------------------------------------------------------
+$hb-input-padding-y: 0.625rem;
+$hb-input-padding-x: 0.875rem;
+$hb-input-font-size: 1rem;
+$hb-input-border-color: $hb-gray-light;
+$hb-input-border-radius: $hb-border-radius;
+$hb-input-focus-border-color: $hb-primary;
+$hb-input-placeholder-color: $hb-gray;
+
+// -----------------------------------------------------------------------------
+// Cards Hummingbird
+// -----------------------------------------------------------------------------
+$hb-card-border-radius: $hb-border-radius-lg;
+$hb-card-border-color: $hb-border-color;
+$hb-card-box-shadow: $hb-shadow-sm;
+$hb-card-padding: $hb-spacer-4;
+
+// -----------------------------------------------------------------------------
+// Product specific
+// -----------------------------------------------------------------------------
+$hb-product-card-border-radius: $hb-border-radius-lg;
+$hb-product-image-ratio: 100%;
+$hb-product-price-color: $hb-primary;
+$hb-product-discount-color: $hb-danger;
+$hb-product-old-price-color: $hb-gray;
+
+
+
+
+
