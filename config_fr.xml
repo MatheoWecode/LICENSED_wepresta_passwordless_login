@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>wepresta_passwordless_login</name>
+    <displayName><![CDATA[Connexion sans mot de passe]]></displayName>
+    <version><![CDATA[1.0.0]]></version>
+    <description><![CDATA[Permettez aux clients de se connecter avec des codes de v&eacute;rification par e-mail ou Google Login au lieu de mots de passe.]]></description>
+    <author><![CDATA[WePresta]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+	<confirmUninstall><![CDATA[Êtes-vous sûr de vouloir désinstaller ? Tous les codes de vérification et liens de connexion sociale seront supprimés.]]></confirmUninstall>
+    <is_configurable>1</is_configurable>
+    <need_instance>0</need_instance>
+</module>

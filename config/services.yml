@@ -1,5 +1,4 @@
-# Module Starter - Services Symfony
-# Documentation: https://devdocs.prestashop.com/8/modules/concepts/services/
+# Passwordless Login - Symfony Services
 
 services:
     _defaults:
@@ -7,51 +6,5 @@ services:
         autoconfigure: true
         public: false
 
-    # =========================================================================
-    # Dashboard Controller - AUTO-REGISTRATION
-    # =========================================================================
-    # Tous les contrôleurs dans src/Presentation/Controller/ sont enregistrés automatiquement
-    
-    Wepresta_Passwordless_Login\Presentation\Controller\Admin\DashboardController:
+    Wepresta_Passwordless_Login\Presentation\Controller\Admin\ConfigureRedirectController:
         tags: ['controller.service_arguments']
-
-    # =========================================================================
-    # OPTIONNEL - Services supplémentaires
-    # =========================================================================
-    # Décommenter et créer les classes correspondantes selon vos besoins
-    #
-    # Configuration Adapter
-    # Wepresta_Passwordless_Login\Infrastructure\Adapter\ConfigurationAdapter:
-    #     public: true
-    #
-    # Main Service
-    # Wepresta_Passwordless_Login\Application\Service\Wepresta_Passwordless_LoginService:
-    #     public: true
-    #
-    # Repository
-    # Wepresta_Passwordless_Login\Infrastructure\Repository\Wepresta_Passwordless_LoginRepository:
-    #     arguments:
-    #         $db: '@=service("prestashop.adapter.legacy.context").getContext().database'
-    #     public: true
-    #
-    # Event Subscribers
-    # Wepresta_Passwordless_Login\Infrastructure\EventSubscriber\ProductEventSubscriber:
-    #     tags:
-    #         - { name: kernel.event_subscriber }
-    #
-    # Wepresta_Passwordless_Login\Infrastructure\EventSubscriber\OrderEventSubscriber:
-    #     tags:
-    #         - { name: kernel.event_subscriber }
-    #
-    # API Controller
-    # Wepresta_Passwordless_Login\Infrastructure\Api\ApiController:
-    #     tags:
-    #         - { name: controller.service_arguments }
-    #     public: true
-    #
-    # Form Type
-    # Wepresta_Passwordless_Login\Application\Form\ConfigurationType:
-    #     parent: 'form.type.translatable.aware'
-    #     public: true
-    #     tags:
-    #         - { name: form.type }

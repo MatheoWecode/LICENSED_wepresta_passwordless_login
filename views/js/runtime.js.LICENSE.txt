@@ -1,0 +1,10 @@
+/*!
+ * Module for PrestaShop
+ *
+ *                 xxxx
+ *                 xxxx
+ *
+ *                 @author      WePresta
+ *                 @copyright   2026 WePresta
+ *                 @license     MIT
+ */

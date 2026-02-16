@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
     <name>wepresta_passwordless_login</name>
-    <displayName><![CDATA[Module Starter]]></displayName>
+    <displayName><![CDATA[Passwordless Login]]></displayName>
     <version><![CDATA[1.0.0]]></version>
-    <description><![CDATA[Module Wepresta_Passwordless_Login pour PrestaShop]]></description>
+    <description><![CDATA[Allow customers to sign in with email verification codes or Google Login instead of passwords.]]></description>
     <author><![CDATA[WePresta]]></author>
     <tab><![CDATA[front_office_features]]></tab>
     <is_configurable>1</is_configurable>

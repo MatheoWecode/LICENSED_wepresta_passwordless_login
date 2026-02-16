@@ -1,0 +1,24 @@
+{
+  "entrypoints": {
+    "front": {
+      "js": [
+        "/modules/wepresta_passwordless_login/views/js/runtime.js",
+        "/modules/wepresta_passwordless_login/views/js/448.js",
+        "/modules/wepresta_passwordless_login/views/js/front.js"
+      ],
+      "css": [
+        "/modules/wepresta_passwordless_login/views/js/../css/front.css"
+      ]
+    },
+    "admin": {
+      "js": [
+        "/modules/wepresta_passwordless_login/views/js/runtime.js",
+        "/modules/wepresta_passwordless_login/views/js/448.js",
+        "/modules/wepresta_passwordless_login/views/js/admin.js"
+      ],
+      "css": [
+        "/modules/wepresta_passwordless_login/views/js/../css/admin.css"
+      ]
+    }
+  }
+}

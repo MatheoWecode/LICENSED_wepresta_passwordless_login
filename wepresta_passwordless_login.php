@@ -1,16 +1,13 @@
 <?php
 /**
- * Module Starter - Template PRO pour PrestaShop 8.x / 9.x
+ * Passwordless Login - PrestaShop 8.x / 9.x
  *
- * Architecture moderne avec:
- * - Clean Architecture (Application/Domain/Infrastructure)
- * - CQRS léger
- * - Symfony Forms & Grid
- * - Event Subscribers
- * - Doctrine Entities
+ * Replaces traditional password-based authentication with email verification codes
+ * and optional Google Login. Customers enter their email, receive a 6-digit code,
+ * and are logged in or registered automatically.
  *
  * @author      WePresta
- * @copyright   2024 Votre Société
+ * @copyright   2024 WePresta
  * @license     MIT
  */
 
@@ -26,74 +23,52 @@ require_once __DIR__ . '/autoload.php';
 use Wepresta_Passwordless_Login\Application\Installer\ModuleInstaller;
 use Wepresta_Passwordless_Login\Application\Installer\TabInstaller;
 use Wepresta_Passwordless_Login\Wedev\Core\Adapter\ConfigurationAdapter;
-use PrestaShop\PrestaShop\Adapter\SymfonyContainer;
 
 class Wepresta_Passwordless_Login extends Module
 {
-    /**
-     * Version du module (utilisée par les contrôleurs)
-     */
     public const VERSION = '1.0.0';
 
-    /**
-     * Configuration par défaut du module
-     */
     public const DEFAULT_CONFIG = [
-        'WEPRESTA_PASSWORDLESS_LOGIN_ACTIVE' => true,
-        'WEPRESTA_PASSWORDLESS_LOGIN_TITLE' => 'Module Starter',
-        'WEPRESTA_PASSWORDLESS_LOGIN_DESCRIPTION' => '',
-        'WEPRESTA_PASSWORDLESS_LOGIN_DEBUG' => false,
-        'WEPRESTA_PASSWORDLESS_LOGIN_CACHE_TTL' => 3600,
-        'WEPRESTA_PASSWORDLESS_LOGIN_API_ENABLED' => false,
+        'WEPRESTA_PL_ACTIVE' => true,
+        'WEPRESTA_PL_SHOW_LOGO' => true,
+        'WEPRESTA_PL_GOOGLE_ENABLED' => false,
+        'WEPRESTA_PL_GOOGLE_CLIENT_ID' => '',
+        'WEPRESTA_PL_SHOW_CLASSIC_LOGIN' => true,
+        'WEPRESTA_PL_DISABLE_GUEST_CHECKOUT' => false,
+        'WEPRESTA_PL_CODE_EXPIRATION' => 10,
+        'WEPRESTA_PL_CODE_MAX_ATTEMPTS' => 5,
+        'WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR' => 5,
+        'WEPRESTA_PL_RESEND_COUNTDOWN' => 60,
+        'WEPRESTA_PL_DEBUG' => false,
+        'WEPRESTA_PL_HIDE_NATIVE_LOGIN' => true,
+        'WEPRESTA_PL_HOOK_POSITION' => 'displayNav1',
+        'WEPRESTA_PL_CUSTOM_HOOK' => '',
     ];
 
-    /**
-     * Shared parent tab class name for all WePresta modules
-     */
     public const WEPRESTA_PARENT_TAB = 'AdminWePresta';
 
-    /**
-     * Tabs admin du module
-     * 
-     * Structure:
-     * 📁 WePresta (AdminWePresta) - auto-created if missing
-     *   └── 📁 Module Starter (AdminWepresta_Passwordless_LoginMain) → opens Dashboard
-     *         └── Dashboard (AdminWepresta_Passwordless_LoginDashboard)
-     * 
-     * IMPORTANT: The main tab MUST have a route_name (same as dashboard)
-     * to avoid "Controller not found" error in PrestaShop.
-     */
     public const TABS = [
-        // Main module tab - under WePresta, with route pointing to dashboard
         [
             'class_name' => 'AdminWepresta_Passwordless_LoginMain',
-            'name' => 'Module Starter',
+            'name' => 'Passwordless Login',
             'parent_class_name' => 'AdminWePresta',
-            'icon' => 'dashboard',
+            'icon' => 'vpn_key',
             'visible' => true,
-            'route_name' => 'wepresta_passwordless_login_dashboard', // REQUIRED: same as dashboard route
-        ],
-        // Dashboard sub-tab
-        [
-            'class_name' => 'AdminWepresta_Passwordless_LoginDashboard',
-            'name' => 'Dashboard',
-            'parent_class_name' => 'AdminWepresta_Passwordless_LoginMain',
-            'icon' => 'dashboard',
-            'visible' => true,
-            'route_name' => 'wepresta_passwordless_login_dashboard',
+            'route_name' => 'wepresta_passwordless_login_configure',
         ],
     ];
 
-    /**
-     * Version minimum de PHP requise
-     */
+    public const HOOKS = [
+        'displayNav1',
+        'displayNav2',
+        'displayTop',
+        'displayNavFullWidth',
+        'displayHeader',
+        'actionFrontControllerSetMedia',
+        'actionFrontControllerInitBefore',
+    ];
+
     private const MIN_PHP_VERSION = '8.1.0';
-
-    public const CONFIG_PREFIX = 'WEPRESTA_PASSWORDLESS_LOGIN_';
-
-    /**
-     * Extensions PHP requises
-     */
     private const REQUIRED_EXTENSIONS = ['json', 'pdo', 'mbstring'];
 
     private ?ConfigurationAdapter $config = null;
@@ -113,25 +88,23 @@ class Wepresta_Passwordless_Login extends Module
 
         parent::__construct();
 
-        $this->displayName = $this->trans('Module Starter', [], 'Modules.Wepresta\Passwordless\Login.Admin');
+        $this->displayName = $this->trans('Passwordless Login', [], 'Modules.Weprestapasswordlesslogin.Admin');
         $this->description = $this->trans(
-            'Template PRO de démarrage pour module PrestaShop 8.x/9.x avec architecture moderne',
+            'Allow customers to sign in with email verification codes or Google Login instead of passwords.',
             [],
-            'Modules.Wepresta\Passwordless\Login.Admin'
+            'Modules.Weprestapasswordlesslogin.Admin'
         );
         $this->confirmUninstall = $this->trans(
-            'Êtes-vous sûr de vouloir désinstaller ce module ? Toutes les données seront perdues.',
+            'Are you sure you want to uninstall? All verification codes and social login links will be deleted.',
             [],
-            'Modules.Wepresta\Passwordless\Login.Admin'
+            'Modules.Weprestapasswordlesslogin.Admin'
         );
     }
 
     // =========================================================================
-    // INSTALLATION / DÉSINSTALLATION
+    // INSTALLATION
     // =========================================================================
-    // =========================================================================
-    // INSTALLATION / DÉSINSTALLATION
-    // =========================================================================
+
     public function install(): bool
     {
         if (!$this->checkRequirements()) {
@@ -147,27 +120,7 @@ class Wepresta_Passwordless_Login extends Module
                 return false;
             }
 
-            if (
-                !$this->registerHook(
-                    'displayHeader',
-                    'displayHome',
-                    'displayFooter',
-                    'displayProductAdditionalInfo',
-                    'displayShoppingCart',
-                    'displayOrderConfirmation',
-
-                    // Front Office - Actions
-                    'actionFrontControllerSetMedia',
-                    'actionCartSave',
-                    'actionValidateOrder',
-                    'actionCustomerAccountAdd',
-
-                    // Back Office
-                    'actionAdminControllerSetMedia',
-                    'actionObjectProductAddAfter',
-                    'actionObjectProductUpdateAfter',
-                )
-            ) {
+            if (!$this->registerHook(self::HOOKS)) {
                 return false;
             }
 
@@ -183,7 +136,6 @@ class Wepresta_Passwordless_Login extends Module
             return $installer->install();
         } catch (\Exception $e) {
             $this->_errors[] = $e->getMessage();
-            $this->log('Installation failed: ' . $e->getMessage(), 3);
             return false;
         }
     }
@@ -196,6 +148,11 @@ class Wepresta_Passwordless_Login extends Module
             ]);
 
             $this->uninstallConfiguration();
+
+            // Restore guest checkout if we disabled it
+            if (Configuration::get('WEPRESTA_PL_DISABLE_GUEST_CHECKOUT')) {
+                Configuration::updateValue('PS_GUEST_CHECKOUT_ENABLED', true);
+            }
 
             $installer->uninstall();
 
@@ -210,25 +167,28 @@ class Wepresta_Passwordless_Login extends Module
         }
     }
 
-    private function uninstallConfiguration(): void
+    public function enable($force_all = false): bool
     {
-        foreach (array_keys(self::DEFAULT_CONFIG) as $key) {
-            Configuration::deleteByName(self::CONFIG_PREFIX . $key);
-        }
+        return parent::enable($force_all) && $this->registerHook(self::HOOKS);
     }
 
     private function installConfiguration(): void
     {
         foreach (self::DEFAULT_CONFIG as $key => $value) {
-            $fullKey = self::CONFIG_PREFIX . $key;
-            if (Configuration::get($fullKey) === false) {
-                Configuration::updateValue($fullKey, $value);
+            if (Configuration::get($key) === false) {
+                Configuration::updateValue($key, $value);
             }
         }
     }
-    /**
-     * Clear Symfony cache to register module routes
-     */
+
+    private function uninstallConfiguration(): void
+    {
+        foreach (array_keys(self::DEFAULT_CONFIG) as $key) {
+            Configuration::deleteByName($key);
+        }
+        Configuration::deleteByName('WEPRESTA_PL_HOOKS_V2');
+    }
+
     private function clearSymfonyCache(): void
     {
         try {
@@ -239,35 +199,20 @@ class Wepresta_Passwordless_Login extends Module
                 \Tab::resetStaticCache();
             }
         } catch (\Throwable $e) {
-            // Ignore errors
+            // Ignore cache clear errors
         }
     }
 
-    public function enable($force_all = false): bool
-    {
-        return parent::enable($force_all) && $this->registerHook(self::HOOKS);
-    }
-
-    /**
-     * Vérifie les prérequis avant installation
-     */
     private function checkRequirements(): bool
     {
         if (version_compare(PHP_VERSION, self::MIN_PHP_VERSION, '<')) {
-            $this->_errors[] = sprintf(
-                $this->trans('PHP %s minimum requis (actuel: %s)', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                self::MIN_PHP_VERSION,
-                PHP_VERSION
-            );
+            $this->_errors[] = sprintf('PHP %s minimum required (current: %s)', self::MIN_PHP_VERSION, PHP_VERSION);
             return false;
         }
 
         foreach (self::REQUIRED_EXTENSIONS as $ext) {
             if (!extension_loaded($ext)) {
-                $this->_errors[] = sprintf(
-                    $this->trans('Extension PHP requise: %s', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                    $ext
-                );
+                $this->_errors[] = sprintf('Required PHP extension: %s', $ext);
                 return false;
             }
         }
@@ -279,56 +224,96 @@ class Wepresta_Passwordless_Login extends Module
     // CONFIGURATION (BACK-OFFICE)
     // =========================================================================
 
-    /**
-     * Page de configuration du module.
-     * Affiche un formulaire de configuration simple.
-     * Le dashboard complet est accessible via le menu admin.
-     */
     public function getContent(): string
-    {
-        return $this->renderLegacyConfigurationForm();
-    }
-
-    /**
-     * Formulaire de configuration legacy (fallback)
-     */
-    private function renderLegacyConfigurationForm(): string
     {
         $output = '';
 
         if (Tools::isSubmit('submit' . $this->name)) {
-            $output .= $this->processLegacyConfiguration();
+            $output .= $this->processConfiguration();
         }
 
-        return $output . $this->buildLegacyForm();
+        return $output . $this->buildConfigurationForm();
     }
 
-    private function processLegacyConfiguration(): string
+    private function processConfiguration(): string
     {
         $errors = [];
 
-        $title = Tools::getValue('WEPRESTA_PASSWORDLESS_LOGIN_TITLE');
-        if (empty($title)) {
-            $errors[] = $this->trans('Le titre est obligatoire.', [], 'Modules.Wepresta\Passwordless\Login.Admin');
+        // Validate Google config
+        $googleEnabled = (bool) Tools::getValue('WEPRESTA_PL_GOOGLE_ENABLED');
+        $googleClientId = trim(Tools::getValue('WEPRESTA_PL_GOOGLE_CLIENT_ID', ''));
+        if ($googleEnabled && empty($googleClientId)) {
+            $errors[] = $this->trans('Google Client ID is required when Google Login is enabled.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+        }
+
+        // Validate numeric fields
+        $codeExpiration = (int) Tools::getValue('WEPRESTA_PL_CODE_EXPIRATION');
+        if ($codeExpiration < 1 || $codeExpiration > 60) {
+            $errors[] = $this->trans('Code expiration must be between 1 and 60 minutes.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+        }
+
+        $maxAttempts = (int) Tools::getValue('WEPRESTA_PL_CODE_MAX_ATTEMPTS');
+        if ($maxAttempts < 1 || $maxAttempts > 10) {
+            $errors[] = $this->trans('Max attempts must be between 1 and 10.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+        }
+
+        // Validate hook position
+        $hookPosition = Tools::getValue('WEPRESTA_PL_HOOK_POSITION', 'displayNav1');
+        $customHook = trim(Tools::getValue('WEPRESTA_PL_CUSTOM_HOOK', ''));
+
+        if ($hookPosition === 'custom') {
+            if (empty($customHook)) {
+                $errors[] = $this->trans('Custom hook name is required when "Custom hook" is selected.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+            } elseif (!preg_match('/^[a-zA-Z][a-zA-Z0-9]*$/', $customHook)) {
+                $errors[] = $this->trans('Custom hook name must contain only letters and numbers, and start with a letter.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+            }
         }
 
         if (!empty($errors)) {
             return $this->displayError(implode('<br>', $errors));
         }
 
-        Configuration::updateValue('WEPRESTA_PASSWORDLESS_LOGIN_ACTIVE', (bool) Tools::getValue('WEPRESTA_PASSWORDLESS_LOGIN_ACTIVE'));
-        Configuration::updateValue('WEPRESTA_PASSWORDLESS_LOGIN_TITLE', pSQL($title));
-        Configuration::updateValue('WEPRESTA_PASSWORDLESS_LOGIN_DESCRIPTION', pSQL(Tools::getValue('WEPRESTA_PASSWORDLESS_LOGIN_DESCRIPTION')));
-        Configuration::updateValue('WEPRESTA_PASSWORDLESS_LOGIN_DEBUG', (bool) Tools::getValue('WEPRESTA_PASSWORDLESS_LOGIN_DEBUG'));
-        Configuration::updateValue('WEPRESTA_PASSWORDLESS_LOGIN_CACHE_TTL', (int) Tools::getValue('WEPRESTA_PASSWORDLESS_LOGIN_CACHE_TTL'));
-        Configuration::updateValue('WEPRESTA_PASSWORDLESS_LOGIN_API_ENABLED', (bool) Tools::getValue('WEPRESTA_PASSWORDLESS_LOGIN_API_ENABLED'));
+        // Save all configuration values
+        Configuration::updateValue('WEPRESTA_PL_ACTIVE', (bool) Tools::getValue('WEPRESTA_PL_ACTIVE'));
+        Configuration::updateValue('WEPRESTA_PL_SHOW_LOGO', (bool) Tools::getValue('WEPRESTA_PL_SHOW_LOGO'));
+        Configuration::updateValue('WEPRESTA_PL_GOOGLE_ENABLED', $googleEnabled);
+        Configuration::updateValue('WEPRESTA_PL_GOOGLE_CLIENT_ID', pSQL($googleClientId));
+        Configuration::updateValue('WEPRESTA_PL_SHOW_CLASSIC_LOGIN', (bool) Tools::getValue('WEPRESTA_PL_SHOW_CLASSIC_LOGIN'));
+        Configuration::updateValue('WEPRESTA_PL_HIDE_NATIVE_LOGIN', (bool) Tools::getValue('WEPRESTA_PL_HIDE_NATIVE_LOGIN'));
+        Configuration::updateValue('WEPRESTA_PL_DEBUG', (bool) Tools::getValue('WEPRESTA_PL_DEBUG'));
+        Configuration::updateValue('WEPRESTA_PL_CODE_EXPIRATION', $codeExpiration);
+        Configuration::updateValue('WEPRESTA_PL_CODE_MAX_ATTEMPTS', $maxAttempts);
+        Configuration::updateValue('WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR', (int) Tools::getValue('WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR'));
+        Configuration::updateValue('WEPRESTA_PL_RESEND_COUNTDOWN', (int) Tools::getValue('WEPRESTA_PL_RESEND_COUNTDOWN'));
 
-        $this->clearModuleCache();
+        // Handle hook position change
+        $previousPosition = Configuration::get('WEPRESTA_PL_HOOK_POSITION');
+        $previousCustomHook = Configuration::get('WEPRESTA_PL_CUSTOM_HOOK');
 
-        return $this->displayConfirmation($this->trans('Configuration sauvegardée.', [], 'Modules.Wepresta\Passwordless\Login.Admin'));
+        if ($previousPosition === 'custom' && !empty($previousCustomHook)) {
+            $this->unregisterHook($previousCustomHook);
+        }
+
+        if ($hookPosition === 'custom' && !empty($customHook)) {
+            $this->registerHook($customHook);
+        }
+
+        Configuration::updateValue('WEPRESTA_PL_HOOK_POSITION', $hookPosition);
+        Configuration::updateValue('WEPRESTA_PL_CUSTOM_HOOK', pSQL($customHook));
+
+        // Handle guest checkout toggle
+        $disableGuest = (bool) Tools::getValue('WEPRESTA_PL_DISABLE_GUEST_CHECKOUT');
+        Configuration::updateValue('WEPRESTA_PL_DISABLE_GUEST_CHECKOUT', $disableGuest);
+        if ($disableGuest) {
+            Configuration::updateValue('PS_GUEST_CHECKOUT_ENABLED', false);
+        }
+
+        return $this->displayConfirmation(
+            $this->trans('Settings saved.', [], 'Modules.Weprestapasswordlesslogin.Admin')
+        );
     }
 
-    private function buildLegacyForm(): string
+    private function buildConfigurationForm(): string
     {
         $helper = new HelperForm();
         $helper->module = $this;
@@ -342,73 +327,175 @@ class Wepresta_Passwordless_Login extends Module
 
         $helper->fields_value = $this->getConfigurationValues();
 
-        return $helper->generateForm([$this->getConfigFormFields()]);
+        return $helper->generateForm($this->getConfigFormFields());
     }
 
     private function getConfigFormFields(): array
     {
+        $switchValues = [
+            ['id' => 'active_on', 'value' => 1, 'label' => $this->trans('Yes', [], 'Admin.Global')],
+            ['id' => 'active_off', 'value' => 0, 'label' => $this->trans('No', [], 'Admin.Global')],
+        ];
+
         return [
-            'form' => [
-                'legend' => [
-                    'title' => $this->trans('Configuration', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                    'icon' => 'icon-cogs',
+            // Section 1: General
+            [
+                'form' => [
+                    'legend' => [
+                        'title' => $this->trans('General Settings', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                        'icon' => 'icon-cogs',
+                    ],
+                    'input' => [
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Enable module', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_ACTIVE',
+                            'is_bool' => true,
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Display shop logo', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_SHOW_LOGO',
+                            'is_bool' => true,
+                            'hint' => $this->trans('Show the shop logo on the login page.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Show classic login link', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_SHOW_CLASSIC_LOGIN',
+                            'is_bool' => true,
+                            'hint' => $this->trans('Show a "Sign in with a password" link on the login page.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Debug mode', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_DEBUG',
+                            'is_bool' => true,
+                            'desc' => $this->trans('Enable logging for troubleshooting. Logs are written to PrestaShop\'s log system.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Hide native login link', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_HIDE_NATIVE_LOGIN',
+                            'is_bool' => true,
+                            'desc' => $this->trans('Hide the default PrestaShop "Sign in" link (from ps_customersignin) for guests. The account/logout links remain visible for logged-in customers.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Disable guest checkout', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_DISABLE_GUEST_CHECKOUT',
+                            'is_bool' => true,
+                            'desc' => $this->trans('Warning: Guest checkout will be disabled. Customers will need to sign in to place an order.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'select',
+                            'label' => $this->trans('Login link position', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_HOOK_POSITION',
+                            'desc' => $this->trans('Choose where to display the login link in your theme.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'options' => [
+                                'query' => [
+                                    ['id' => 'displayNav1', 'name' => 'displayNav1 — ' . $this->trans('Navigation bar (left)', [], 'Modules.Weprestapasswordlesslogin.Admin')],
+                                    ['id' => 'displayNav2', 'name' => 'displayNav2 — ' . $this->trans('Navigation bar (right)', [], 'Modules.Weprestapasswordlesslogin.Admin')],
+                                    ['id' => 'displayTop', 'name' => 'displayTop — ' . $this->trans('Top of the page', [], 'Modules.Weprestapasswordlesslogin.Admin')],
+                                    ['id' => 'displayNavFullWidth', 'name' => 'displayNavFullWidth — ' . $this->trans('Full-width navigation', [], 'Modules.Weprestapasswordlesslogin.Admin')],
+                                    ['id' => 'custom', 'name' => $this->trans('Custom hook', [], 'Modules.Weprestapasswordlesslogin.Admin')],
+                                ],
+                                'id' => 'id',
+                                'name' => 'name',
+                            ],
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Custom hook name', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_CUSTOM_HOOK',
+                            'class' => 'fixed-width-xxl',
+                            'desc' => $this->trans('Enter the hook name provided by your theme (e.g. displayCustomNav). Only used when "Custom hook" is selected above.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                        ],
+                    ],
+                    'submit' => [
+                        'title' => $this->trans('Save', [], 'Admin.Actions'),
+                    ],
                 ],
-                'input' => [
-                    [
-                        'type' => 'switch',
-                        'label' => $this->trans('Activer', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'name' => 'WEPRESTA_PASSWORDLESS_LOGIN_ACTIVE',
-                        'is_bool' => true,
-                        'values' => [
-                            ['id' => 'active_on', 'value' => 1, 'label' => $this->trans('Oui', [], 'Admin.Global')],
-                            ['id' => 'active_off', 'value' => 0, 'label' => $this->trans('Non', [], 'Admin.Global')],
+            ],
+            // Section 2: Google Login
+            [
+                'form' => [
+                    'legend' => [
+                        'title' => $this->trans('Google Login', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                        'icon' => 'icon-google',
+                    ],
+                    'input' => [
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Enable Google Login', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_GOOGLE_ENABLED',
+                            'is_bool' => true,
+                            'values' => $switchValues,
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Google Client ID', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_GOOGLE_CLIENT_ID',
+                            'class' => 'fixed-width-xxl',
+                            'desc' => $this->trans('How to get a Google Client ID:', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>1. ' . $this->trans('Go to [url]console.cloud.google.com[/url] and create a project (or select an existing one)', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>2. ' . $this->trans('Go to "APIs & Services" > "Credentials"', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>3. ' . $this->trans('Click "Create Credentials" > "OAuth client ID"', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>4. ' . $this->trans('If prompted, configure the OAuth consent screen first (User type: External)', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>5. ' . $this->trans('Application type: "Web application"', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>6. ' . $this->trans('In "Authorized JavaScript origins", add your domain (e.g. https://yourshop.com)', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br>7. ' . $this->trans('Copy the Client ID and paste it here', [], 'Modules.Weprestapasswordlesslogin.Admin'),
                         ],
                     ],
-                    [
-                        'type' => 'text',
-                        'label' => $this->trans('Titre', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'name' => 'WEPRESTA_PASSWORDLESS_LOGIN_TITLE',
-                        'class' => 'fixed-width-xxl',
-                        'required' => true,
-                    ],
-                    [
-                        'type' => 'textarea',
-                        'label' => $this->trans('Description', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'name' => 'WEPRESTA_PASSWORDLESS_LOGIN_DESCRIPTION',
-                        'autoload_rte' => true,
-                    ],
-                    [
-                        'type' => 'switch',
-                        'label' => $this->trans('Mode debug', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'name' => 'WEPRESTA_PASSWORDLESS_LOGIN_DEBUG',
-                        'is_bool' => true,
-                        'hint' => $this->trans('Active les logs détaillés', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'values' => [
-                            ['id' => 'debug_on', 'value' => 1, 'label' => $this->trans('Oui', [], 'Admin.Global')],
-                            ['id' => 'debug_off', 'value' => 0, 'label' => $this->trans('Non', [], 'Admin.Global')],
-                        ],
-                    ],
-                    [
-                        'type' => 'text',
-                        'label' => $this->trans('TTL Cache (secondes)', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'name' => 'WEPRESTA_PASSWORDLESS_LOGIN_CACHE_TTL',
-                        'class' => 'fixed-width-sm',
-                        'suffix' => 's',
-                    ],
-                    [
-                        'type' => 'switch',
-                        'label' => $this->trans('API REST', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'name' => 'WEPRESTA_PASSWORDLESS_LOGIN_API_ENABLED',
-                        'is_bool' => true,
-                        'hint' => $this->trans('Active les endpoints API', [], 'Modules.Wepresta\Passwordless\Login.Admin'),
-                        'values' => [
-                            ['id' => 'api_on', 'value' => 1, 'label' => $this->trans('Oui', [], 'Admin.Global')],
-                            ['id' => 'api_off', 'value' => 0, 'label' => $this->trans('Non', [], 'Admin.Global')],
-                        ],
+                    'submit' => [
+                        'title' => $this->trans('Save', [], 'Admin.Actions'),
                     ],
                 ],
-                'submit' => [
-                    'title' => $this->trans('Enregistrer', [], 'Admin.Actions'),
+            ],
+            // Section 3: Security
+            [
+                'form' => [
+                    'legend' => [
+                        'title' => $this->trans('Security Settings', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                        'icon' => 'icon-shield',
+                    ],
+                    'input' => [
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Code expiration (minutes)', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_CODE_EXPIRATION',
+                            'class' => 'fixed-width-sm',
+                            'suffix' => 'min',
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Max attempts per code', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_CODE_MAX_ATTEMPTS',
+                            'class' => 'fixed-width-sm',
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Max codes per email per hour', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR',
+                            'class' => 'fixed-width-sm',
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Resend countdown (seconds)', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_RESEND_COUNTDOWN',
+                            'class' => 'fixed-width-sm',
+                            'suffix' => 's',
+                        ],
+                    ],
+                    'submit' => [
+                        'title' => $this->trans('Save', [], 'Admin.Actions'),
+                    ],
                 ],
             ],
         ];
@@ -417,14 +504,89 @@ class Wepresta_Passwordless_Login extends Module
     private function getConfigurationValues(): array
     {
         $values = [];
-        foreach (array_keys(self::DEFAULT_CONFIG) as $key) {
-            $values[$key] = Configuration::get($key);
+        foreach (self::DEFAULT_CONFIG as $key => $default) {
+            $value = Configuration::get($key);
+            $values[$key] = ($value !== false) ? $value : $default;
         }
         return $values;
     }
 
     // =========================================================================
-    // HOOKS FRONT-OFFICE - DISPLAY
+    // HOOKS — DISPLAY LOGIN LINK
+    // =========================================================================
+
+    public function hookDisplayNav1(array $params): string
+    {
+        return $this->renderLoginLinkForHook('displayNav1');
+    }
+
+    public function hookDisplayNav2(array $params): string
+    {
+        return $this->renderLoginLinkForHook('displayNav2');
+    }
+
+    public function hookDisplayTop(array $params): string
+    {
+        return $this->renderLoginLinkForHook('displayTop');
+    }
+
+    public function hookDisplayNavFullWidth(array $params): string
+    {
+        return $this->renderLoginLinkForHook('displayNavFullWidth');
+    }
+
+    /**
+     * Catch custom hook calls dynamically.
+     * PrestaShop calls hook{HookName}() — for custom hooks we can't define a method in advance.
+     */
+    public function __call(string $method, array $args)
+    {
+        if (stripos($method, 'hook') === 0) {
+            $hookPosition = Configuration::get('WEPRESTA_PL_HOOK_POSITION');
+            $customHook = Configuration::get('WEPRESTA_PL_CUSTOM_HOOK');
+
+            if ($hookPosition === 'custom' && !empty($customHook)) {
+                $calledHook = substr($method, 4); // Remove 'hook' prefix
+                if (strcasecmp($calledHook, $customHook) === 0) {
+                    return $this->renderLoginLink();
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function renderLoginLinkForHook(string $hookName): string
+    {
+        $activeHook = Configuration::get('WEPRESTA_PL_HOOK_POSITION') ?: 'displayNav1';
+
+        if ($activeHook !== $hookName) {
+            return '';
+        }
+
+        return $this->renderLoginLink();
+    }
+
+    private function renderLoginLink(): string
+    {
+        if (!$this->isActive()) {
+            return '';
+        }
+
+        // Only show for non-logged-in customers
+        if ($this->context->customer && $this->context->customer->isLogged()) {
+            return '';
+        }
+
+        $this->context->smarty->assign([
+            'pl_auth_url' => $this->context->link->getModuleLink($this->name, 'auth'),
+        ]);
+
+        return $this->fetch('module:wepresta_passwordless_login/views/templates/hook/login-link.tpl');
+    }
+
+    // =========================================================================
+    // HOOKS — ASSETS & ACTIONS
     // =========================================================================
 
     public function hookDisplayHeader(array $params): string
@@ -433,196 +595,78 @@ class Wepresta_Passwordless_Login extends Module
             return '';
         }
 
+        // One-time hook registration for existing installations (handles upgrades)
+        if (!Configuration::get('WEPRESTA_PL_HOOKS_V2')) {
+            $this->registerHook('actionFrontControllerInitBefore');
+            Configuration::updateValue('WEPRESTA_PL_HOOKS_V2', true);
+        }
+
+        // Register minimal CSS for hook login link styling on all pages
         $this->context->controller->registerStylesheet(
-            'wepresta_passwordless_login-front',
+            'wepresta-pl-hook',
             'modules/' . $this->name . '/views/css/front.css',
             ['media' => 'all', 'priority' => 150]
         );
 
+        // Hide native ps_customersignin login link for guests
+        if (Configuration::get('WEPRESTA_PL_HIDE_NATIVE_LOGIN')
+            && (!$this->context->customer || !$this->context->customer->isLogged())
+        ) {
+            return '<style>.user-info .login{display:none!important}</style>';
+        }
+
         return '';
     }
 
-    public function hookDisplayHome(array $params): string
-    {
-        if (!$this->isActive()) {
-            return '';
-        }
-
-        $cacheId = $this->getCacheId('home');
-
-        if (!$this->isCached('module:wepresta_passwordless_login/views/templates/hook/home.tpl', $cacheId)) {
-            $this->context->smarty->assign([
-                'wepresta_passwordless_login' => [
-                    'title' => $this->getConfig()->get('WEPRESTA_PASSWORDLESS_LOGIN_TITLE'),
-                    'description' => $this->getConfig()->get('WEPRESTA_PASSWORDLESS_LOGIN_DESCRIPTION'),
-                    'link' => $this->context->link->getModuleLink($this->name, 'display'),
-                ],
-            ]);
-        }
-
-        return $this->fetch('module:wepresta_passwordless_login/views/templates/hook/home.tpl', $cacheId);
-    }
-
-    public function hookDisplayFooter(array $params): string
-    {
-        if (!$this->isActive()) {
-            return '';
-        }
-
-        return $this->fetch('module:wepresta_passwordless_login/views/templates/hook/footer.tpl');
-    }
-
-    public function hookDisplayProductAdditionalInfo(array $params): string
-    {
-        if (!$this->isActive()) {
-            return '';
-        }
-
-        /** @var Product $product */
-        $product = $params['product'] ?? null;
-
-        if (!$product) {
-            return '';
-        }
-
-        $this->context->smarty->assign([
-            'product_id' => $product->id ?? ($product['id_product'] ?? 0),
-        ]);
-
-        return $this->fetch('module:wepresta_passwordless_login/views/templates/hook/product-info.tpl');
-    }
-
-    public function hookDisplayShoppingCart(array $params): string
-    {
-        return ''; // Implémentez si nécessaire
-    }
-
-    public function hookDisplayOrderConfirmation(array $params): string
-    {
-        return ''; // Implémentez si nécessaire
-    }
-
-    // =========================================================================
-    // HOOKS FRONT-OFFICE - ACTIONS
-    // =========================================================================
-
     public function hookActionFrontControllerSetMedia(array $params): void
     {
-        if (!$this->isActive()) {
-            return;
-        }
-
-        $controller = Tools::getValue('controller');
-
-        // JS conditionnel
-        $jsPages = ['product', 'category', 'index', 'cart'];
-        if (in_array($controller, $jsPages, true)) {
-            $this->context->controller->registerJavascript(
-                'wepresta_passwordless_login-front',
-                'modules/' . $this->name . '/views/js/front.js',
-                ['position' => 'bottom', 'priority' => 150, 'attributes' => 'defer']
-            );
-        }
+        // Assets for the auth page are registered by the auth controller itself
     }
-
-    public function hookActionCartSave(array $params): void
-    {
-        if (!$this->isActive()) {
-            return;
-        }
-
-        $this->debug('Cart saved', ['cart_id' => $this->context->cart->id]);
-    }
-
-    public function hookActionValidateOrder(array $params): void
-    {
-        if (!$this->isActive()) {
-            return;
-        }
-
-        /** @var Order $order */
-        $order = $params['order'] ?? null;
-
-        if ($order) {
-            $this->debug('Order validated', [
-                'order_id' => $order->id,
-                'reference' => $order->reference,
-                'total' => $order->total_paid,
-            ]);
-        }
-    }
-
-    public function hookActionCustomerAccountAdd(array $params): void
-    {
-        if (!$this->isActive()) {
-            return;
-        }
-
-        /** @var Customer $customer */
-        $customer = $params['newCustomer'] ?? null;
-
-        if ($customer) {
-            $this->debug('Customer registered', ['customer_id' => $customer->id]);
-        }
-    }
-
-    // =========================================================================
-    // HOOKS BACK-OFFICE
-    // =========================================================================
-
-    public function hookActionAdminControllerSetMedia(array $params): void
-    {
-        if ($this->isConfigurationPage()) {
-            $this->context->controller->addCSS($this->_path . 'views/css/admin.css');
-            $this->context->controller->addJS($this->_path . 'views/js/admin.js');
-        }
-    }
-
-    public function hookActionObjectProductAddAfter(array $params): void
-    {
-        /** @var Product $product */
-        $product = $params['object'] ?? null;
-
-        if ($product) {
-            $this->debug('Product added', ['product_id' => $product->id]);
-        }
-    }
-
-    public function hookActionObjectProductUpdateAfter(array $params): void
-    {
-        /** @var Product $product */
-        $product = $params['object'] ?? null;
-
-        if ($product) {
-            $this->debug('Product updated', ['product_id' => $product->id]);
-            $this->clearModuleCache();
-        }
-    }
-
-    // =========================================================================
-    // MÉTHODES UTILITAIRES
-    // =========================================================================
 
     /**
-     * Vérifie si le module est activé
+     * Intercept checkout page for non-logged-in customers.
+     * Redirects to the passwordless login page with a back URL to the order page.
      */
+    public function hookActionFrontControllerInitBefore(array $params): void
+    {
+        if (!$this->isActive()) {
+            return;
+        }
+
+        $controller = $this->context->controller;
+
+        // Only intercept the order/checkout controller
+        if (!isset($controller->php_self) || $controller->php_self !== 'order') {
+            return;
+        }
+
+        // Don't redirect if customer is already logged in
+        if ($this->context->customer && $this->context->customer->isLogged()) {
+            return;
+        }
+
+        // Build the back URL (full order page URL for correct redirect after login)
+        $orderUrl = $this->context->link->getPageLink('order', true);
+
+        // Redirect to passwordless login page
+        $authUrl = $this->context->link->getModuleLink(
+            $this->name,
+            'auth',
+            ['back' => $orderUrl]
+        );
+
+        Tools::redirect($authUrl);
+    }
+
+    // =========================================================================
+    // UTILITIES
+    // =========================================================================
+
     public function isActive(): bool
     {
-        return (bool) Configuration::get('WEPRESTA_PASSWORDLESS_LOGIN_ACTIVE');
+        return (bool) Configuration::get('WEPRESTA_PL_ACTIVE');
     }
 
-    /**
-     * Vérifie si on est sur la page de configuration du module
-     */
-    private function isConfigurationPage(): bool
-    {
-        return $this->context->controller instanceof AdminModulesController
-            && Tools::getValue('configure') === $this->name;
-    }
-
-    /**
-     * Accès à l'adaptateur de configuration (avec cache)
-     */
     public function getConfig(): ConfigurationAdapter
     {
         if ($this->config === null) {
@@ -631,9 +675,6 @@ class Wepresta_Passwordless_Login extends Module
         return $this->config;
     }
 
-    /**
-     * Récupère un service du conteneur Symfony
-     */
     public function getService(string $serviceId): ?object
     {
         try {
@@ -642,82 +683,23 @@ class Wepresta_Passwordless_Login extends Module
                 return $container->get($serviceId);
             }
         } catch (\Exception $e) {
-            $this->log('Service not found: ' . $serviceId, 2);
+            // Service not available
         }
         return null;
     }
 
-    /**
-     * Vide le cache du module
-     */
-    public function clearModuleCache(): void
-    {
-        $this->_clearCache('*');
-
-        // Clear Symfony cache if available
-        $cacheDir = _PS_CACHE_DIR_ . 'smarty/compile/';
-        if (is_dir($cacheDir)) {
-            array_map('unlink', glob($cacheDir . $this->name . '_*') ?: []);
-        }
-    }
-
-    /**
-     * Log avec contexte
-     */
-    public function log(string $message, int $severity = 1, array $context = []): void
-    {
-        $formattedMessage = '[' . $this->name . '] ' . $message;
-
-        if (!empty($context)) {
-            $formattedMessage .= ' | ' . json_encode($context);
-        }
-
-        PrestaShopLogger::addLog(
-            $formattedMessage,
-            $severity,
-            null,
-            'Module',
-            $this->id
-        );
-    }
-
-    /**
-     * Log de debug (seulement si mode debug actif)
-     */
-    private function debug(string $message, array $context = []): void
-    {
-        if ((bool) Configuration::get('WEPRESTA_PASSWORDLESS_LOGIN_DEBUG')) {
-            $this->log('[DEBUG] ' . $message, 1, $context);
-        }
-    }
-
-    /**
-     * Retourne le chemin du module
-     */
     public function getModulePath(): string
     {
         return $this->getLocalPath();
     }
 
-    /**
-     * Check si le module est correctement configuré
-     */
-    public function isConfigured(): bool
-    {
-        return !empty(Configuration::get('WEPRESTA_PASSWORDLESS_LOGIN_TITLE'));
-    }
-
-    /**
-     * Génère une clé de cache unique
-     */
     protected function getCacheId($name = null)
     {
         return $this->name . '_' . (string) $name . '_' . $this->context->shop->id;
     }
 }
 
-// Alias pour PrestaShop: Module::getInstanceByName() cherche la classe avec le nom exact du module (snake_case)
-// Cette ligne crée un alias 'wepresta_passwordless_login' -> 'Wepresta_Passwordless_Login' pour que class_exists() fonctionne
+// PrestaShop class alias for Module::getInstanceByName()
 if (!class_exists('wepresta_passwordless_login', false)) {
     class_alias('Wepresta_Passwordless_Login', 'wepresta_passwordless_login');
 }

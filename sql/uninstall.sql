@@ -1,6 +1,4 @@
--- Module Starter - Uninstallation SQL
--- Drops all module tables
+-- Passwordless Login - Uninstallation SQL
 
-DROP TABLE IF EXISTS `PREFIX_wepresta_passwordless_login`;
--- DROP TABLE IF EXISTS `PREFIX_wepresta_passwordless_login_lang`;
--- DROP TABLE IF EXISTS `PREFIX_wepresta_passwordless_login_shop`;
+DROP TABLE IF EXISTS `PREFIX_passwordless_code`;
+DROP TABLE IF EXISTS `PREFIX_passwordless_social`;
