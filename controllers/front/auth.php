@@ -12,8 +12,6 @@ if (!defined('_PS_VERSION_')) {
 
 class Wepresta_Passwordless_LoginAuthModuleFrontController extends ModuleFrontController
 {
-    public $php_self = 'auth';
-
     public function init(): void
     {
         parent::init();

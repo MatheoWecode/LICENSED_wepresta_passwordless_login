@@ -329,7 +329,7 @@ class Wepresta_Passwordless_Login extends Module
         $helper = new HelperForm();
         $helper->module = $this;
         $helper->identifier = $this->identifier;
-        $helper->token = Tools::getAdminTokenLite('AdminModules');
+        $helper->token = Tools::getAdminToken('AdminModules' . (int) \Tab::getIdFromClassName('AdminModules') . (int) $this->context->employee->id);
         $helper->currentIndex = AdminController::$currentIndex . '&configure=' . $this->name;
         $helper->default_form_language = (int) Configuration::get('PS_LANG_DEFAULT');
         $helper->allow_employee_form_lang = (int) Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG');

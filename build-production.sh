@@ -64,13 +64,14 @@ echo -e "${YELLOW}[3/7]${NC} Création de la copie temporaire..."
 # Créer le dossier de build
 mkdir -p "$BUILD_DIR"
 
-# Copier tout le module (exclure .git, .cursor, node_modules, .agent, .cursors, .vscode)
+# Copier tout le module (exclure .git, .cursor, node_modules, .agent, .cursors, .vscode, .claude)
 echo "  → Copie du module..."
 rsync -a --exclude='.git' \
          --exclude='.cursor/' \
          --exclude='.agent/' \
          --exclude='.cursors/' \
          --exclude='.vscode/' \
+         --exclude='.claude/' \
          --exclude='node_modules' \
          --exclude='docs' \
          --exclude='build-production.sh' \

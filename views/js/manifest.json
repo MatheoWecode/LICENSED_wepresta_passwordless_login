@@ -1,9 +1,8 @@
 {
   "wepresta_passwordless_login/front.css": "/modules/wepresta_passwordless_login/views/js/../css/front.css",
-  "wepresta_passwordless_login/front.js": "/modules/wepresta_passwordless_login/views/js/front.js",
+  "wepresta_passwordless_login/front.js": "/modules/wepresta_passwordless_login/views/js/front.e194fc5a.js",
   "wepresta_passwordless_login/admin.css": "/modules/wepresta_passwordless_login/views/js/../css/admin.css",
-  "wepresta_passwordless_login/admin.js": "/modules/wepresta_passwordless_login/views/js/admin.js",
-  "wepresta_passwordless_login/runtime.js": "/modules/wepresta_passwordless_login/views/js/runtime.js",
-  "wepresta_passwordless_login/vendors-node_modules_core-js_modules_esnext_iterator_constructor_js-node_modules_core-js_modu-bd769a.js": "/modules/wepresta_passwordless_login/views/js/vendors-node_modules_core-js_modules_esnext_iterator_constructor_js-node_modules_core-js_modu-bd769a.js",
-  "wepresta_passwordless_login/vendors-node_modules_core-js_modules_es_array_push_js-node_modules_core-js_modules_esnext_ite-98dab4.js": "/modules/wepresta_passwordless_login/views/js/vendors-node_modules_core-js_modules_es_array_push_js-node_modules_core-js_modules_esnext_ite-98dab4.js"
+  "wepresta_passwordless_login/admin.js": "/modules/wepresta_passwordless_login/views/js/admin.a24b565f.js",
+  "wepresta_passwordless_login/runtime.js": "/modules/wepresta_passwordless_login/views/js/runtime.e1bb6ae4.js",
+  "wepresta_passwordless_login/448.641b7506.js": "/modules/wepresta_passwordless_login/views/js/448.641b7506.js"
 }
