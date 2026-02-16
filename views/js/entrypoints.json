@@ -3,7 +3,7 @@
     "front": {
       "js": [
         "/modules/wepresta_passwordless_login/views/js/runtime.js",
-        "/modules/wepresta_passwordless_login/views/js/448.js",
+        "/modules/wepresta_passwordless_login/views/js/vendors-node_modules_core-js_modules_esnext_iterator_constructor_js-node_modules_core-js_modu-bd769a.js",
         "/modules/wepresta_passwordless_login/views/js/front.js"
       ],
       "css": [
@@ -13,7 +13,8 @@
     "admin": {
       "js": [
         "/modules/wepresta_passwordless_login/views/js/runtime.js",
-        "/modules/wepresta_passwordless_login/views/js/448.js",
+        "/modules/wepresta_passwordless_login/views/js/vendors-node_modules_core-js_modules_esnext_iterator_constructor_js-node_modules_core-js_modu-bd769a.js",
+        "/modules/wepresta_passwordless_login/views/js/vendors-node_modules_core-js_modules_es_array_push_js-node_modules_core-js_modules_esnext_ite-98dab4.js",
         "/modules/wepresta_passwordless_login/views/js/admin.js"
       ],
       "css": [

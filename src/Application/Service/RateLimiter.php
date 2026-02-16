@@ -20,6 +20,8 @@ class RateLimiter
         $this->codeRepository = $codeRepository ?? new CodeRepository();
     }
 
+    private const MAX_SENDS_PER_IP_PER_HOUR = 20;
+
     /**
      * Check if a code can be sent to this email (rate limit not exceeded).
      */
@@ -31,5 +33,15 @@ class RateLimiter
         $recentCount = $this->codeRepository->countRecentByEmail($email, $shopId, 60);
 
         return $recentCount < $maxPerHour;
+    }
+
+    /**
+     * Check if an IP address has exceeded the global send rate limit.
+     */
+    public function canSendCodeByIp(string $ipAddress): bool
+    {
+        $recentCount = $this->codeRepository->countRecentByIp($ipAddress, 60);
+
+        return $recentCount < self::MAX_SENDS_PER_IP_PER_HOUR;
     }
 }

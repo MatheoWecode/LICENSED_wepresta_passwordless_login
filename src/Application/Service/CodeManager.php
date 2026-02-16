@@ -24,7 +24,7 @@ class CodeManager
     /**
      * Generate a 6-digit code, store its hash, and return the plain code.
      */
-    public function generateAndStore(string $email, int $shopId, ?int $customerId = null): string
+    public function generateAndStore(string $email, int $shopId, ?int $customerId = null, ?string $ipAddress = null): string
     {
         $email = strtolower(trim($email));
 
@@ -38,7 +38,7 @@ class CodeManager
         $hash = password_hash($code, PASSWORD_DEFAULT);
 
         // Store in database
-        $this->codeRepository->storeCode($email, $hash, $shopId, $customerId);
+        $this->codeRepository->storeCode($email, $hash, $shopId, $customerId, $ipAddress);
 
         return $code;
     }
@@ -80,8 +80,8 @@ class CodeManager
             throw AuthenticationException::invalidCode();
         }
 
-        // Mark as used
-        $this->codeRepository->markAsUsed((int) $codeRecord['id_code']);
+        // Mark as used AND verified (distinguishes from max-attempts exhaustion)
+        $this->codeRepository->markAsVerified((int) $codeRecord['id_code']);
 
         return $codeRecord;
     }

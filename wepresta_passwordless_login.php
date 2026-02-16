@@ -257,6 +257,16 @@ class Wepresta_Passwordless_Login extends Module
             $errors[] = $this->trans('Max attempts must be between 1 and 10.', [], 'Modules.Weprestapasswordlesslogin.Admin');
         }
 
+        $maxSendsPerHour = (int) Tools::getValue('WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR');
+        if ($maxSendsPerHour < 1 || $maxSendsPerHour > 20) {
+            $errors[] = $this->trans('Max codes per hour must be between 1 and 20.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+        }
+
+        $resendCountdown = (int) Tools::getValue('WEPRESTA_PL_RESEND_COUNTDOWN');
+        if ($resendCountdown < 10 || $resendCountdown > 300) {
+            $errors[] = $this->trans('Resend countdown must be between 10 and 300 seconds.', [], 'Modules.Weprestapasswordlesslogin.Admin');
+        }
+
         // Validate hook position
         $hookPosition = Tools::getValue('WEPRESTA_PL_HOOK_POSITION', 'displayNav1');
         $customHook = trim(Tools::getValue('WEPRESTA_PL_CUSTOM_HOOK', ''));
@@ -274,17 +284,17 @@ class Wepresta_Passwordless_Login extends Module
         }
 
         // Save all configuration values
-        Configuration::updateValue('WEPRESTA_PL_ACTIVE', (bool) Tools::getValue('WEPRESTA_PL_ACTIVE'));
-        Configuration::updateValue('WEPRESTA_PL_SHOW_LOGO', (bool) Tools::getValue('WEPRESTA_PL_SHOW_LOGO'));
-        Configuration::updateValue('WEPRESTA_PL_GOOGLE_ENABLED', $googleEnabled);
+        Configuration::updateValue('WEPRESTA_PL_ACTIVE', (int) Tools::getValue('WEPRESTA_PL_ACTIVE'));
+        Configuration::updateValue('WEPRESTA_PL_SHOW_LOGO', (int) Tools::getValue('WEPRESTA_PL_SHOW_LOGO'));
+        Configuration::updateValue('WEPRESTA_PL_GOOGLE_ENABLED', (int) $googleEnabled);
         Configuration::updateValue('WEPRESTA_PL_GOOGLE_CLIENT_ID', pSQL($googleClientId));
-        Configuration::updateValue('WEPRESTA_PL_SHOW_CLASSIC_LOGIN', (bool) Tools::getValue('WEPRESTA_PL_SHOW_CLASSIC_LOGIN'));
-        Configuration::updateValue('WEPRESTA_PL_HIDE_NATIVE_LOGIN', (bool) Tools::getValue('WEPRESTA_PL_HIDE_NATIVE_LOGIN'));
-        Configuration::updateValue('WEPRESTA_PL_DEBUG', (bool) Tools::getValue('WEPRESTA_PL_DEBUG'));
+        Configuration::updateValue('WEPRESTA_PL_SHOW_CLASSIC_LOGIN', (int) Tools::getValue('WEPRESTA_PL_SHOW_CLASSIC_LOGIN'));
+        Configuration::updateValue('WEPRESTA_PL_HIDE_NATIVE_LOGIN', (int) Tools::getValue('WEPRESTA_PL_HIDE_NATIVE_LOGIN'));
+        Configuration::updateValue('WEPRESTA_PL_DEBUG', (int) Tools::getValue('WEPRESTA_PL_DEBUG'));
         Configuration::updateValue('WEPRESTA_PL_CODE_EXPIRATION', $codeExpiration);
         Configuration::updateValue('WEPRESTA_PL_CODE_MAX_ATTEMPTS', $maxAttempts);
-        Configuration::updateValue('WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR', (int) Tools::getValue('WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR'));
-        Configuration::updateValue('WEPRESTA_PL_RESEND_COUNTDOWN', (int) Tools::getValue('WEPRESTA_PL_RESEND_COUNTDOWN'));
+        Configuration::updateValue('WEPRESTA_PL_CODE_MAX_SENDS_PER_HOUR', $maxSendsPerHour);
+        Configuration::updateValue('WEPRESTA_PL_RESEND_COUNTDOWN', $resendCountdown);
 
         // Handle hook position change
         $previousPosition = Configuration::get('WEPRESTA_PL_HOOK_POSITION');
@@ -302,7 +312,7 @@ class Wepresta_Passwordless_Login extends Module
         Configuration::updateValue('WEPRESTA_PL_CUSTOM_HOOK', pSQL($customHook));
 
         // Handle guest checkout toggle
-        $disableGuest = (bool) Tools::getValue('WEPRESTA_PL_DISABLE_GUEST_CHECKOUT');
+        $disableGuest = (int) Tools::getValue('WEPRESTA_PL_DISABLE_GUEST_CHECKOUT');
         Configuration::updateValue('WEPRESTA_PL_DISABLE_GUEST_CHECKOUT', $disableGuest);
         if ($disableGuest) {
             Configuration::updateValue('PS_GUEST_CHECKOUT_ENABLED', false);
@@ -366,15 +376,7 @@ class Wepresta_Passwordless_Login extends Module
                             'label' => $this->trans('Show classic login link', [], 'Modules.Weprestapasswordlesslogin.Admin'),
                             'name' => 'WEPRESTA_PL_SHOW_CLASSIC_LOGIN',
                             'is_bool' => true,
-                            'hint' => $this->trans('Show a "Sign in with a password" link on the login page.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
-                            'values' => $switchValues,
-                        ],
-                        [
-                            'type' => 'switch',
-                            'label' => $this->trans('Debug mode', [], 'Modules.Weprestapasswordlesslogin.Admin'),
-                            'name' => 'WEPRESTA_PL_DEBUG',
-                            'is_bool' => true,
-                            'desc' => $this->trans('Enable logging for troubleshooting. Logs are written to PrestaShop\'s log system.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'desc' => $this->trans('Display a "Sign in with a password" link on the passwordless login page, allowing customers to use the standard PrestaShop login form instead.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
                             'values' => $switchValues,
                         ],
                         [
@@ -382,7 +384,8 @@ class Wepresta_Passwordless_Login extends Module
                             'label' => $this->trans('Hide native login link', [], 'Modules.Weprestapasswordlesslogin.Admin'),
                             'name' => 'WEPRESTA_PL_HIDE_NATIVE_LOGIN',
                             'is_bool' => true,
-                            'desc' => $this->trans('Hide the default PrestaShop "Sign in" link (from ps_customersignin) for guests. The account/logout links remain visible for logged-in customers.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'desc' => $this->trans('Hide the default PrestaShop "Sign in" link (from ps_customersignin) for guests. The account/logout links remain visible for logged-in customers.', [], 'Modules.Weprestapasswordlesslogin.Admin')
+                                . '<br><strong>' . $this->trans('Note: If your theme uses a custom login template (not the default ps_customersignin), this option may not work as expected.', [], 'Modules.Weprestapasswordlesslogin.Admin') . '</strong>',
                             'values' => $switchValues,
                         ],
                         [
@@ -416,6 +419,14 @@ class Wepresta_Passwordless_Login extends Module
                             'name' => 'WEPRESTA_PL_CUSTOM_HOOK',
                             'class' => 'fixed-width-xxl',
                             'desc' => $this->trans('Enter the hook name provided by your theme (e.g. displayCustomNav). Only used when "Custom hook" is selected above.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                        ],
+                        [
+                            'type' => 'switch',
+                            'label' => $this->trans('Debug mode', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'name' => 'WEPRESTA_PL_DEBUG',
+                            'is_bool' => true,
+                            'desc' => $this->trans('Enable logging for troubleshooting. Logs are written to PrestaShop\'s log system.', [], 'Modules.Weprestapasswordlesslogin.Admin'),
+                            'values' => $switchValues,
                         ],
                     ],
                     'submit' => [
@@ -612,7 +623,7 @@ class Wepresta_Passwordless_Login extends Module
         if (Configuration::get('WEPRESTA_PL_HIDE_NATIVE_LOGIN')
             && (!$this->context->customer || !$this->context->customer->isLogged())
         ) {
-            return '<style>.user-info .login{display:none!important}</style>';
+            return '<style>#_desktop_user_info,#_mobile_user_info{display:none!important}</style>';
         }
 
         return '';

@@ -20,7 +20,7 @@ class Wepresta_Passwordless_LoginAuthModuleFrontController extends ModuleFrontCo
 
         // If already logged in, redirect
         if ($this->context->customer && $this->context->customer->isLogged()) {
-            $backUrl = Tools::getValue('back');
+            $backUrl = $this->sanitizeRedirectUrl(Tools::getValue('back', ''));
             if ($backUrl) {
                 Tools::redirect($backUrl);
             }
@@ -80,7 +80,7 @@ class Wepresta_Passwordless_LoginAuthModuleFrontController extends ModuleFrontCo
     {
         parent::initContent();
 
-        $backUrl = Tools::getValue('back', '');
+        $backUrl = $this->sanitizeRedirectUrl(Tools::getValue('back', ''));
         $orderPageLink = $this->context->link->getPageLink('order', true);
         $fromCheckout = !empty($backUrl) && (
             strpos($backUrl, 'controller=order') !== false
@@ -110,6 +110,31 @@ class Wepresta_Passwordless_LoginAuthModuleFrontController extends ModuleFrontCo
         ]);
 
         $this->setTemplate('module:wepresta_passwordless_login/views/templates/front/auth-fullscreen.tpl');
+    }
+
+    /**
+     * Validate that a redirect URL is internal (same domain or relative).
+     */
+    private function sanitizeRedirectUrl(string $url): string
+    {
+        $url = trim($url);
+        if (empty($url)) {
+            return '';
+        }
+
+        // Allow relative URLs
+        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+            return $url;
+        }
+
+        // Allow URLs matching the shop domain
+        $shopUrl = Tools::getShopDomainSsl(true);
+        if (!empty($shopUrl) && str_starts_with($url, $shopUrl)) {
+            return $url;
+        }
+
+        // Reject everything else (external URLs)
+        return '';
     }
 
     public function getBreadcrumbLinks(): array

@@ -89,8 +89,19 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
 
         $shopId = (int) $this->context->shop->id;
 
-        // Check rate limit
+        $ipAddress = Tools::getRemoteAddr();
+
+        // Check rate limit (per-email)
         if (!$this->getRateLimiter()->canSendCode($email, $shopId)) {
+            $this->jsonError(
+                $this->trans('Too many requests. Please wait a moment.', [], 'Modules.Weprestapasswordlesslogin.Front'),
+                'RATE_LIMITED'
+            );
+            return;
+        }
+
+        // Check rate limit (per-IP — prevents mass email enumeration/spam)
+        if (!$this->getRateLimiter()->canSendCodeByIp($ipAddress)) {
             $this->jsonError(
                 $this->trans('Too many requests. Please wait a moment.', [], 'Modules.Weprestapasswordlesslogin.Front'),
                 'RATE_LIMITED'
@@ -103,12 +114,12 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
         $customerId = $customer ? (int) $customer->id : null;
 
         // Generate and store code
-        $code = $this->getCodeManager()->generateAndStore($email, $shopId, $customerId);
+        $code = $this->getCodeManager()->generateAndStore($email, $shopId, $customerId, $ipAddress);
 
-        // Log code in debug mode (for local development without email)
+        // Log code send event in debug mode (never log the plaintext code)
         if (Configuration::get('WEPRESTA_PL_DEBUG')) {
             PrestaShopLogger::addLog(
-                'PasswordlessLogin: code ' . $code . ' for ' . $email,
+                'PasswordlessLogin: verification code sent to ' . $email,
                 1,
                 null,
                 'Module',
@@ -150,6 +161,8 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
         try {
             $this->getCodeManager()->verify($email, $code, $shopId);
         } catch (AuthenticationException $e) {
+            // Delay after failed attempt to slow down brute force
+            usleep(500000); // 500ms
             $this->jsonError(
                 $this->translateErrorCode($e->getErrorCode()),
                 $e->getErrorCode()
@@ -161,13 +174,22 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
         $customer = $this->getCustomerCreator()->findByEmail($email);
 
         if ($customer) {
+            // Check if customer account is active
+            if (!$customer->active) {
+                $this->jsonError(
+                    $this->trans('Your account has been disabled.', [], 'Modules.Weprestapasswordlesslogin.Front'),
+                    'ACCOUNT_DISABLED'
+                );
+                return;
+            }
+
             // Existing customer: log them in
             $this->getCustomerCreator()->loginCustomer($customer, $this->context);
             $this->context->cookie->write();
 
             $this->jsonSuccess([
                 'needsProfile' => false,
-                'redirectUrl' => Tools::getValue('back_url', ''),
+                'redirectUrl' => $this->sanitizeRedirectUrl(Tools::getValue('back_url', '')),
             ]);
         } else {
             // New customer: needs profile completion
@@ -235,7 +257,7 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
             $this->context->cookie->write();
 
             $this->jsonSuccess([
-                'redirectUrl' => Tools::getValue('back_url', ''),
+                'redirectUrl' => $this->sanitizeRedirectUrl(Tools::getValue('back_url', '')),
             ]);
             return;
         }
@@ -251,7 +273,7 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
         $this->context->cookie->write();
 
         $this->jsonSuccess([
-            'redirectUrl' => Tools::getValue('back_url', ''),
+            'redirectUrl' => $this->sanitizeRedirectUrl(Tools::getValue('back_url', '')),
         ]);
     }
 
@@ -300,11 +322,18 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
             // Known Google user: load customer and log in
             $customer = new Customer((int) $socialLink['id_customer']);
             if (Validate::isLoadedObject($customer)) {
+                if (!$customer->active) {
+                    $this->jsonError(
+                        $this->trans('Your account has been disabled.', [], 'Modules.Weprestapasswordlesslogin.Front'),
+                        'ACCOUNT_DISABLED'
+                    );
+                    return;
+                }
                 $this->getCustomerCreator()->loginCustomer($customer, $this->context);
                 $this->context->cookie->write();
                 $this->jsonSuccess([
                     'needsProfile' => false,
-                    'redirectUrl' => Tools::getValue('back_url', ''),
+                    'redirectUrl' => $this->sanitizeRedirectUrl(Tools::getValue('back_url', '')),
                 ]);
                 return;
             }
@@ -314,6 +343,13 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
         $customer = $this->getCustomerCreator()->findByEmail($email);
 
         if ($customer) {
+            if (!$customer->active) {
+                $this->jsonError(
+                    $this->trans('Your account has been disabled.', [], 'Modules.Weprestapasswordlesslogin.Front'),
+                    'ACCOUNT_DISABLED'
+                );
+                return;
+            }
             // Link Google account and log in
             $this->getSocialRepository()->linkAccount((int) $customer->id, 'google', $googleId, $shopId);
             $this->getCustomerCreator()->loginCustomer($customer, $this->context);
@@ -321,7 +357,7 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
 
             $this->jsonSuccess([
                 'needsProfile' => false,
-                'redirectUrl' => Tools::getValue('back_url', ''),
+                'redirectUrl' => $this->sanitizeRedirectUrl(Tools::getValue('back_url', '')),
             ]);
             return;
         }
@@ -336,7 +372,7 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
 
             $this->jsonSuccess([
                 'needsProfile' => false,
-                'redirectUrl' => Tools::getValue('back_url', ''),
+                'redirectUrl' => $this->sanitizeRedirectUrl(Tools::getValue('back_url', '')),
             ]);
         } else {
             // No name from Google: need profile completion
@@ -356,6 +392,28 @@ class Wepresta_Passwordless_LoginApiModuleFrontController extends ModuleFrontCon
     // =========================================================================
     // JSON response helpers
     // =========================================================================
+
+    /**
+     * Validate that a redirect URL is internal (same domain or relative).
+     */
+    private function sanitizeRedirectUrl(string $url): string
+    {
+        $url = trim($url);
+        if (empty($url)) {
+            return '';
+        }
+
+        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+            return $url;
+        }
+
+        $shopUrl = Tools::getShopDomainSsl(true);
+        if (!empty($shopUrl) && str_starts_with($url, $shopUrl)) {
+            return $url;
+        }
+
+        return '';
+    }
 
     /**
      * @param array<string, mixed> $data
