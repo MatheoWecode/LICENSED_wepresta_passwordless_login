@@ -49,20 +49,29 @@ class CodeRepository extends AbstractRepository
 
         $table = $this->getTable();
 
-        // Add verified column (distinguishes successful verification from max-attempts exhaustion)
-        $this->db->execute(
-            "ALTER TABLE `{$table}` ADD COLUMN `verified` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0 AFTER `used`"
-        );
+        // Check which columns already exist to avoid duplicate column errors
+        $columns = $this->db->executeS("SHOW COLUMNS FROM `{$table}`");
+        $existingColumns = array_column($columns, 'Field');
 
-        // Add ip_address column for IP-based rate limiting
-        $this->db->execute(
-            "ALTER TABLE `{$table}` ADD COLUMN `ip_address` VARCHAR(45) DEFAULT NULL AFTER `id_shop`"
-        );
+        if (!in_array('verified', $existingColumns, true)) {
+            $this->db->execute(
+                "ALTER TABLE `{$table}` ADD COLUMN `verified` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0 AFTER `used`"
+            );
+        }
 
-        // Add index for IP-based queries
-        $this->db->execute(
-            "ALTER TABLE `{$table}` ADD KEY `idx_ip_date` (`ip_address`, `date_add`)"
-        );
+        if (!in_array('ip_address', $existingColumns, true)) {
+            $this->db->execute(
+                "ALTER TABLE `{$table}` ADD COLUMN `ip_address` VARCHAR(45) DEFAULT NULL AFTER `id_shop`"
+            );
+        }
+
+        // Check if index exists before adding
+        $indexes = $this->db->executeS("SHOW INDEX FROM `{$table}` WHERE Key_name = 'idx_ip_date'");
+        if (empty($indexes)) {
+            $this->db->execute(
+                "ALTER TABLE `{$table}` ADD KEY `idx_ip_date` (`ip_address`, `date_add`)"
+            );
+        }
 
         Configuration::updateValue('WEPRESTA_PL_DB_V2', 1);
     }

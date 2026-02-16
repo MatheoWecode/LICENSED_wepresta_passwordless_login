@@ -187,6 +187,7 @@ class Wepresta_Passwordless_Login extends Module
             Configuration::deleteByName($key);
         }
         Configuration::deleteByName('WEPRESTA_PL_HOOKS_V2');
+        Configuration::deleteByName('WEPRESTA_PL_DB_V2');
     }
 
     private function clearSymfonyCache(): void
